@@ -1100,7 +1100,8 @@ async function FetchAnnouncementBanner() {
         Elements.SystemBannerStatusBadge.className = `badge ${banner.Enabled ? "text-bg-success" : "bg-secondary-subtle text-secondary"}`;
       }
 
-      if (banner.Enabled && banner.Message && !sessionStorage.getItem("qir_banner_dismissed")) {
+      const dismissedMsg = localStorage.getItem("qir_banner_dismissed");
+      if (banner.Enabled && banner.Message && dismissedMsg !== banner.Message) {
         Elements.GlobalAnnouncementText.textContent = banner.Message;
         Elements.GlobalAnnouncementBanner.className = `alert alert-${banner.Type} d-flex align-items-center justify-content-between py-2 px-3 mb-4 shadow-sm rounded border-0`;
         let iconClass = "bi-info-circle-fill";
@@ -3749,7 +3750,7 @@ function SetupExtraServerFeatures() {
         const json = await res.json();
         if (json.Success) {
           ShowToast("Announcement banner broadcast updated", "success");
-          sessionStorage.removeItem("qir_banner_dismissed");
+          localStorage.removeItem("qir_banner_dismissed");
           FetchAnnouncementBanner();
         } else {
           ShowToast("Failed to update banner: " + json.Error, "error");
@@ -3763,7 +3764,8 @@ function SetupExtraServerFeatures() {
   if (Elements.GlobalAnnouncementCloseBtn) {
     Elements.GlobalAnnouncementCloseBtn.addEventListener("click", () => {
       Elements.GlobalAnnouncementBanner.classList.add("d-none");
-      sessionStorage.setItem("qir_banner_dismissed", "1");
+      const currentMsg = Elements.GlobalAnnouncementText?.textContent || "1";
+      localStorage.setItem("qir_banner_dismissed", currentMsg);
     });
   }
 
