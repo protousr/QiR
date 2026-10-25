@@ -2,6 +2,7 @@ export type ServerStatus =
   | "Created"
   | "Starting"
   | "Running"
+  | "Paused"
   | "Stopping"
   | "Stopped"
   | "Restarting"
@@ -40,6 +41,7 @@ export interface IServerInstance {
   RestartPolicy?: "unless-stopped" | "always" | "on-failure" | "no";
   Image?: string;
   OomKilled?: boolean;
+  ExitCode?: number;
   HealthStatus?: "healthy" | "unhealthy" | "starting" | "none";
   OwnerId?: string;
   OwnerUsername?: string;

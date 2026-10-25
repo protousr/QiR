@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import net from "node:net";
 import { ContainerManager } from "../Docker/ContainerManager.js";
 import { LogStreamer } from "../Docker/LogStreamer.js";
 import { StatsCollector } from "../Docker/StatsCollector.js";
@@ -71,12 +72,13 @@ export class ServerService {
                 const inspect = await this.ContainerManager.InspectContainer(server.ContainerId);
                 server.Image = inspect.Config.Image;
                 server.OomKilled = Boolean(inspect.State.OOMKilled);
+                server.ExitCode = typeof inspect.State.ExitCode === "number" ? inspect.State.ExitCode : 0;
                 server.HealthStatus = inspect.State.Health?.Status || "none";
                 if (inspect.HostConfig?.RestartPolicy?.Name) {
                     server.RestartPolicy = inspect.HostConfig.RestartPolicy.Name;
                 }
                 if (inspect.State.Running) {
-                    server.Status = "Running";
+                    server.Status = inspect.State.Paused ? "Paused" : "Running";
                 }
                 else if (inspect.State.Restarting) {
                     server.Status = "Restarting";
@@ -236,12 +238,13 @@ export class ServerService {
             const inspect = await this.ContainerManager.InspectContainer(server.ContainerId);
             server.Image = inspect.Config.Image;
             server.OomKilled = Boolean(inspect.State.OOMKilled);
+            server.ExitCode = typeof inspect.State.ExitCode === "number" ? inspect.State.ExitCode : 0;
             server.HealthStatus = inspect.State.Health?.Status || "none";
             if (inspect.HostConfig?.RestartPolicy?.Name) {
                 server.RestartPolicy = inspect.HostConfig.RestartPolicy.Name;
             }
             server.Status = inspect.State.Running
-                ? "Running"
+                ? (inspect.State.Paused ? "Paused" : "Running")
                 : inspect.State.Restarting
                     ? "Restarting"
                     : "Stopped";
@@ -697,5 +700,66 @@ export class ServerService {
             Details: `Server ${server.Name} (${serverId}) redeployed with image ${targetImage}.`,
         });
         return server;
+    }
+    async PauseServer(serverId) {
+        const server = this.Servers.get(serverId);
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
+        }
+        await this.ContainerManager.PauseContainer(server.ContainerId);
+        server.Status = "Paused";
+        await this.SaveServers();
+        this.DatabaseManager.LogAudit({
+            Id: crypto.randomUUID(),
+            Timestamp: new Date().toISOString(),
+            Action: "SERVER_PAUSE",
+            IpAddress: "system",
+            Details: `Paused container execution for "${server.Name}" (${serverId})`,
+        });
+    }
+    async UnpauseServer(serverId) {
+        const server = this.Servers.get(serverId);
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
+        }
+        await this.ContainerManager.UnpauseContainer(server.ContainerId);
+        server.Status = "Running";
+        await this.SaveServers();
+        this.DatabaseManager.LogAudit({
+            Id: crypto.randomUUID(),
+            Timestamp: new Date().toISOString(),
+            Action: "SERVER_UNPAUSE",
+            IpAddress: "system",
+            Details: `Unpaused container execution for "${server.Name}" (${serverId})`,
+        });
+    }
+    async ProbePort(serverId, port, host = "127.0.0.1") {
+        const server = this.Servers.get(serverId);
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
+        }
+        const isMapped = server.Ports.some((p) => p.HostPort === port);
+        if (!isMapped) {
+            throw new Error(`Port ${port} is not mapped to server ${serverId}`);
+        }
+        return new Promise((resolve) => {
+            const startTime = performance.now();
+            const socket = new net.Socket();
+            socket.setTimeout(2500);
+            socket.on("connect", () => {
+                const latencyMs = Math.round(performance.now() - startTime);
+                socket.destroy();
+                resolve({ Reachable: true, LatencyMs: latencyMs });
+            });
+            socket.on("timeout", () => {
+                socket.destroy();
+                resolve({ Reachable: false, LatencyMs: null, Error: "Connection timed out (2.5s)" });
+            });
+            socket.on("error", (err) => {
+                socket.destroy();
+                resolve({ Reachable: false, LatencyMs: null, Error: err.message });
+            });
+            socket.connect(port, host);
+        });
     }
 }

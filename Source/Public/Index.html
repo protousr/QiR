@@ -185,6 +185,14 @@
       </header>
 
       <main class="flex-grow-1 overflow-y-auto p-4 ContentArea">
+        <div id="GlobalAnnouncementBanner" class="alert d-none align-items-center justify-content-between py-2 px-3 mb-4 shadow-sm rounded border-0" role="alert">
+          <div class="d-flex align-items-center gap-2">
+            <i id="GlobalAnnouncementIcon" class="bi bi-info-circle-fill fs-5"></i>
+            <span id="GlobalAnnouncementText" class="fw-medium small"></span>
+          </div>
+          <button type="button" class="btn-close small ms-2" id="GlobalAnnouncementCloseBtn" aria-label="Close"></button>
+        </div>
+
         <div id="SectionServers">
           <div class="row g-3 mb-4">
             <div class="col-sm-6 col-lg-3">
@@ -335,6 +343,9 @@
               </button>
               <button class="btn btn-sm btn-outline-warning" id="DetailStopBtn" title="Graceful Stop">
                 <i class="bi bi-stop-fill me-1"></i> Stop
+              </button>
+              <button class="btn btn-sm btn-outline-warning" id="DetailPauseBtn" title="Pause / Freeze Execution">
+                <i class="bi bi-pause-fill me-1"></i> Pause
               </button>
               <button class="btn btn-sm btn-outline-info" id="DetailRestartBtn" title="Restart">
                 <i class="bi bi-arrow-repeat me-1"></i> Restart
@@ -611,7 +622,10 @@
                     </div>
                     <div class="row g-3 mb-3">
                       <div class="col-md-6">
-                        <label for="DetailMemoryLimitSelect" class="form-label small fw-medium">Memory Allocation Limit</label>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                          <label for="DetailMemoryLimitSelect" class="form-label small fw-medium mb-0">Memory Allocation Limit</label>
+                          <span class="badge bg-secondary-subtle text-secondary font-monospace" id="DetailMemorySliderBadge">Unlimited</span>
+                        </div>
                         <select class="form-select form-select-sm" id="DetailMemoryLimitSelect">
                           <option value="0">Unlimited (Host Memory)</option>
                           <option value="536870912">512 MB</option>
@@ -620,9 +634,13 @@
                           <option value="4294967296">4096 MB (4 GB)</option>
                           <option value="8589934592">8192 MB (8 GB)</option>
                         </select>
+                        <input type="range" class="form-range mt-2" id="DetailMemorySlider" min="0" max="8589934592" step="536870912" value="0">
                       </div>
                       <div class="col-md-6">
-                        <label for="DetailCpuSharesSelect" class="form-label small fw-medium">CPU Core Allocation</label>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                          <label for="DetailCpuSharesSelect" class="form-label small fw-medium mb-0">CPU Core Allocation</label>
+                          <span class="badge bg-secondary-subtle text-secondary font-monospace" id="DetailCpuSliderBadge">Unlimited</span>
+                        </div>
                         <select class="form-select form-select-sm" id="DetailCpuSharesSelect">
                           <option value="0">Unlimited (All Cores)</option>
                           <option value="50">0.5 Logical Core</option>
@@ -630,6 +648,7 @@
                           <option value="200">2.0 Logical Cores</option>
                           <option value="400">4.0 Logical Cores</option>
                         </select>
+                        <input type="range" class="form-range mt-2" id="DetailCpuSlider" min="0" max="400" step="50" value="0">
                       </div>
                     </div>
 
@@ -1120,6 +1139,46 @@
                     <button class="btn btn-sm btn-outline-danger ms-auto" id="PruneAllBtn">
                       <i class="bi bi-trash-fill me-1"></i> System Prune All
                     </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-12 mt-3">
+              <div class="card TableCard shadow-sm">
+                <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2 fw-medium">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-megaphone text-primary"></i>
+                    <span>Global Announcement &amp; Maintenance Broadcast</span>
+                  </div>
+                  <span class="badge bg-secondary-subtle text-secondary" id="SystemBannerStatusBadge">Disabled</span>
+                </div>
+                <div class="card-body">
+                  <div class="row g-3 align-items-end">
+                    <div class="col-md-2">
+                      <label class="form-label small text-body-secondary fw-semibold">STATUS</label>
+                      <div class="form-check form-switch mt-1">
+                        <input class="form-check-input" type="checkbox" id="SystemBannerEnableSwitch">
+                        <label class="form-check-label small" for="SystemBannerEnableSwitch">Enabled</label>
+                      </div>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small text-body-secondary fw-semibold">ALERT SEVERITY</label>
+                      <select class="form-select form-select-sm" id="SystemBannerTypeSelect">
+                        <option value="info">Info (Blue Notice)</option>
+                        <option value="warning">Warning (Amber Alert)</option>
+                        <option value="danger">Critical / Maintenance (Red)</option>
+                        <option value="success">Success / Operational (Green)</option>
+                      </select>
+                    </div>
+                    <div class="col-md-5">
+                      <label class="form-label small text-body-secondary fw-semibold">BROADCAST MESSAGE</label>
+                      <input type="text" class="form-control form-control-sm" id="SystemBannerTextInput" placeholder="e.g. Scheduled maintenance window tonight at 23:00 UTC...">
+                    </div>
+                    <div class="col-md-2">
+                      <button class="btn btn-sm btn-primary w-100" id="SystemBannerSaveBtn">
+                        <i class="bi bi-broadcast me-1"></i> Broadcast
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

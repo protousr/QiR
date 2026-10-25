@@ -14,4 +14,9 @@ export async function SystemRoutes(fastify: FastifyInstance): Promise<void> {
     "/system/docker/prune",
     controller.PruneDockerSystem
   );
+  fastify.get("/system/banner", controller.GetAnnouncementBanner);
+  fastify.post<{ Body: { Enabled: boolean; Message: string; Type: "info" | "warning" | "danger" | "success" } }>(
+    "/system/banner",
+    controller.SetAnnouncementBanner
+  );
 }

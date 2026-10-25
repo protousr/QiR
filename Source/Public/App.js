@@ -306,6 +306,20 @@ const Elements = {
   ImagePreviewDimensionsBadge: document.getElementById("ImagePreviewDimensionsBadge"),
   ImagePreviewDownloadBtn: document.getElementById("ImagePreviewDownloadBtn"),
   ImagePreviewImg: document.getElementById("ImagePreviewImg"),
+  GlobalAnnouncementBanner: document.getElementById("GlobalAnnouncementBanner"),
+  GlobalAnnouncementIcon: document.getElementById("GlobalAnnouncementIcon"),
+  GlobalAnnouncementText: document.getElementById("GlobalAnnouncementText"),
+  GlobalAnnouncementCloseBtn: document.getElementById("GlobalAnnouncementCloseBtn"),
+  SystemBannerStatusBadge: document.getElementById("SystemBannerStatusBadge"),
+  SystemBannerEnableSwitch: document.getElementById("SystemBannerEnableSwitch"),
+  SystemBannerTypeSelect: document.getElementById("SystemBannerTypeSelect"),
+  SystemBannerTextInput: document.getElementById("SystemBannerTextInput"),
+  SystemBannerSaveBtn: document.getElementById("SystemBannerSaveBtn"),
+  DetailPauseBtn: document.getElementById("DetailPauseBtn"),
+  DetailMemorySlider: document.getElementById("DetailMemorySlider"),
+  DetailMemorySliderBadge: document.getElementById("DetailMemorySliderBadge"),
+  DetailCpuSlider: document.getElementById("DetailCpuSlider"),
+  DetailCpuSliderBadge: document.getElementById("DetailCpuSliderBadge"),
 };
 
 function GetBootstrapModal(element) {
@@ -974,6 +988,7 @@ async function FetchSystemStatus() {
       }
 
       RenderSystemDiagnostics(data);
+      FetchAnnouncementBanner();
     }
   } catch {
     Elements.DockerStatusBadge.className = "badge text-bg-danger";
@@ -1001,6 +1016,42 @@ function RenderSystemDiagnostics(data) {
     <tr><td class="text-body-secondary ps-3">Daemon Status</td><td><span class="badge ${data.DockerConnected ? "text-bg-success" : "text-bg-danger"}">${data.DockerConnected ? "Online" : "Offline"}</span></td></tr>
     <tr><td class="text-body-secondary ps-3">Engine Details</td><td>${versionHtml}</td></tr>
   `;
+}
+
+async function FetchAnnouncementBanner() {
+  try {
+    const res = await fetch("/api/system/banner");
+    const json = await res.json();
+    if (json.Success && json.Data) {
+      const banner = json.Data;
+      if (Elements.SystemBannerEnableSwitch) {
+        Elements.SystemBannerEnableSwitch.checked = Boolean(banner.Enabled);
+      }
+      if (Elements.SystemBannerTypeSelect) {
+        Elements.SystemBannerTypeSelect.value = banner.Type || "info";
+      }
+      if (Elements.SystemBannerTextInput) {
+        Elements.SystemBannerTextInput.value = banner.Message || "";
+      }
+      if (Elements.SystemBannerStatusBadge) {
+        Elements.SystemBannerStatusBadge.textContent = banner.Enabled ? "Active Broadcast" : "Disabled";
+        Elements.SystemBannerStatusBadge.className = `badge ${banner.Enabled ? "text-bg-success" : "bg-secondary-subtle text-secondary"}`;
+      }
+
+      if (banner.Enabled && banner.Message && !sessionStorage.getItem("qir_banner_dismissed")) {
+        Elements.GlobalAnnouncementText.textContent = banner.Message;
+        Elements.GlobalAnnouncementBanner.className = `alert alert-${banner.Type} d-flex align-items-center justify-content-between py-2 px-3 mb-4 shadow-sm rounded border-0`;
+        let iconClass = "bi-info-circle-fill";
+        if (banner.Type === "warning") iconClass = "bi-exclamation-triangle-fill";
+        else if (banner.Type === "danger") iconClass = "bi-exclamation-octagon-fill";
+        else if (banner.Type === "success") iconClass = "bi-check-circle-fill";
+        Elements.GlobalAnnouncementIcon.className = `bi ${iconClass} fs-5`;
+        Elements.GlobalAnnouncementBanner.classList.remove("d-none");
+      } else {
+        Elements.GlobalAnnouncementBanner.classList.add("d-none");
+      }
+    }
+  } catch {}
 }
 
 async function FetchTemplates() {
@@ -1234,11 +1285,24 @@ function RenderServersTable() {
     const template = Templates.find((t) => t.Id === server.TemplateId);
     const templateLabel = template ? template.Name : server.TemplateId;
 
-    let statusBadgeClass = "text-bg-secondary";
-    if (server.Status === "Running") statusBadgeClass = "text-bg-success";
-    else if (server.Status === "Starting" || server.Status === "Restarting")
-      statusBadgeClass = "text-bg-warning text-dark";
-    else if (server.Status === "Error") statusBadgeClass = "text-bg-danger";
+    let statusBadgeHtml = `<span class="badge text-bg-secondary">${server.Status}</span>`;
+    if (server.Status === "Running") {
+      statusBadgeHtml = `<span class="badge text-bg-success">Running</span>`;
+    } else if (server.Status === "Paused") {
+      statusBadgeHtml = `<span class="badge text-bg-warning text-dark"><i class="bi bi-pause-circle me-1"></i>Paused</span>`;
+    } else if (server.Status === "Starting" || server.Status === "Restarting") {
+      statusBadgeHtml = `<span class="badge text-bg-warning text-dark">${server.Status}</span>`;
+    } else if (server.Status === "Stopped") {
+      if (server.OomKilled) {
+        statusBadgeHtml = `<span class="badge text-bg-danger"><i class="bi bi-exclamation-octagon me-1"></i>OOM Killed (137)</span>`;
+      } else if (server.ExitCode && server.ExitCode !== 0) {
+        statusBadgeHtml = `<span class="badge text-bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Exited (${server.ExitCode})</span>`;
+      } else {
+        statusBadgeHtml = `<span class="badge text-bg-secondary">Stopped</span>`;
+      }
+    } else if (server.Status === "Error") {
+      statusBadgeHtml = `<span class="badge text-bg-danger">Error</span>`;
+    }
 
     const portsText =
       server.Ports && server.Ports.length > 0
@@ -1256,7 +1320,7 @@ function RenderServersTable() {
         <span class="badge text-bg-dark border font-monospace">${EscapeHtml(templateLabel)}</span>
       </td>
       <td>
-        <span class="badge ${statusBadgeClass}">${server.Status}</span>
+        ${statusBadgeHtml}
       </td>
       <td class="font-monospace small">${EscapeHtml(portsText)}</td>
       <td class="font-monospace small text-body-secondary">${server.ContainerId.slice(0, 12)}</td>
@@ -1351,14 +1415,42 @@ function UpdateDetailServerHeader(server) {
     Elements.DetailCurrentImageBadge.textContent = server.Image || "default";
   }
 
-  let statusBadgeClass = "text-bg-secondary";
-  if (server.Status === "Running") statusBadgeClass = "text-bg-success";
-  else if (server.Status === "Starting" || server.Status === "Restarting")
-    statusBadgeClass = "text-bg-warning text-dark";
-  else if (server.Status === "Error") statusBadgeClass = "text-bg-danger";
+  if (server.Status === "Running") {
+    Elements.DetailStatusBadge.className = "badge text-bg-success";
+    Elements.DetailStatusBadge.innerHTML = `<i class="bi bi-play-circle-fill me-1"></i> Running`;
+  } else if (server.Status === "Paused") {
+    Elements.DetailStatusBadge.className = "badge text-bg-warning text-dark";
+    Elements.DetailStatusBadge.innerHTML = `<i class="bi bi-pause-circle me-1"></i> Paused`;
+  } else if (server.Status === "Starting" || server.Status === "Restarting") {
+    Elements.DetailStatusBadge.className = "badge text-bg-warning text-dark";
+    Elements.DetailStatusBadge.textContent = server.Status;
+  } else if (server.Status === "Stopped") {
+    if (server.OomKilled) {
+      Elements.DetailStatusBadge.className = "badge text-bg-danger";
+      Elements.DetailStatusBadge.innerHTML = `<i class="bi bi-exclamation-octagon me-1"></i> OOM Killed (137)`;
+    } else if (server.ExitCode && server.ExitCode !== 0) {
+      Elements.DetailStatusBadge.className = "badge text-bg-warning text-dark";
+      Elements.DetailStatusBadge.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i> Exited (${server.ExitCode})`;
+    } else {
+      Elements.DetailStatusBadge.className = "badge text-bg-secondary";
+      Elements.DetailStatusBadge.textContent = "Stopped";
+    }
+  } else if (server.Status === "Error") {
+    Elements.DetailStatusBadge.className = "badge text-bg-danger";
+    Elements.DetailStatusBadge.textContent = "Error";
+  }
 
-  Elements.DetailStatusBadge.className = `badge ${statusBadgeClass}`;
-  Elements.DetailStatusBadge.textContent = server.Status;
+  if (Elements.DetailPauseBtn) {
+    if (server.Status === "Paused") {
+      Elements.DetailPauseBtn.innerHTML = `<i class="bi bi-play-circle-fill me-1"></i> Resume`;
+      Elements.DetailPauseBtn.className = "btn btn-sm btn-outline-success";
+      Elements.DetailPauseBtn.disabled = false;
+    } else {
+      Elements.DetailPauseBtn.innerHTML = `<i class="bi bi-pause-fill me-1"></i> Pause`;
+      Elements.DetailPauseBtn.className = "btn btn-sm btn-outline-warning";
+      Elements.DetailPauseBtn.disabled = server.Status !== "Running";
+    }
+  }
 
   const oomBadge = document.getElementById("DetailOomBadge");
   if (oomBadge) {
@@ -1996,9 +2088,17 @@ function RenderServerConfigTab() {
 
   const memLimit = server.Limits?.Memory || 0;
   Elements.DetailMemoryLimitSelect.value = String(memLimit);
+  if (Elements.DetailMemorySlider) {
+    Elements.DetailMemorySlider.value = String(memLimit);
+    UpdateMemorySliderLabel(memLimit);
+  }
 
   const cpuLimit = server.Limits?.CpuShares || 0;
   Elements.DetailCpuSharesSelect.value = String(cpuLimit);
+  if (Elements.DetailCpuSlider) {
+    Elements.DetailCpuSlider.value = String(cpuLimit);
+    UpdateCpuSliderLabel(cpuLimit);
+  }
 
   Elements.DetailPortsContainer.innerHTML = "";
   if (server.Ports && server.Ports.length > 0) {
@@ -2006,17 +2106,49 @@ function RenderServerConfigTab() {
       const pDiv = document.createElement("div");
       pDiv.className = "d-flex align-items-center justify-content-between p-2 rounded border mb-2 font-monospace small";
       pDiv.innerHTML = `
-        <div>
+        <div class="d-flex align-items-center gap-2">
           <span>Host: <strong class="text-primary">${p.HostPort}</strong></span>
           <span class="mx-1">&rarr;</span>
           <span>Container: <strong>${p.ContainerPort}/${p.Protocol}</strong></span>
+          <span class="PortProbeResult font-monospace small" id="PortProbeResult_${p.HostPort}"></span>
         </div>
-        <button class="btn btn-xs btn-outline-danger DeletePortBtn" data-cport="${p.ContainerPort}" data-proto="${p.Protocol}" title="Remove port mapping">
-          <i class="bi bi-trash"></i>
-        </button>
+        <div class="d-flex align-items-center gap-1">
+          <button class="btn btn-xs btn-outline-info PortProbeBtn" data-port="${p.HostPort}" title="Test TCP connectivity">
+            <i class="bi bi-activity me-1"></i> Probe
+          </button>
+          <button class="btn btn-xs btn-outline-danger DeletePortBtn" data-cport="${p.ContainerPort}" data-proto="${p.Protocol}" title="Remove port mapping">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
       `;
       Elements.DetailPortsContainer.appendChild(pDiv);
     }
+
+    Elements.DetailPortsContainer.querySelectorAll(".PortProbeBtn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const port = btn.dataset.port;
+        const resEl = document.getElementById(`PortProbeResult_${port}`);
+        if (resEl) resEl.innerHTML = `<span class="badge text-bg-secondary"><i class="bi bi-hourglass-split me-1"></i>Testing...</span>`;
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/servers/${ActiveDetailServerId}/ports/probe`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ Port: Number(port) }),
+          });
+          const json = await res.json();
+          if (json.Success && json.Data.Reachable) {
+            if (resEl) resEl.innerHTML = `<span class="badge text-bg-success"><i class="bi bi-check-circle-fill me-1"></i>${json.Data.LatencyMs}ms Reachable</span>`;
+          } else {
+            if (resEl) resEl.innerHTML = `<span class="badge text-bg-danger"><i class="bi bi-x-circle-fill me-1"></i>${json.Data?.Error || "Refused"}</span>`;
+          }
+        } catch {
+          if (resEl) resEl.innerHTML = `<span class="badge text-bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Probe Error</span>`;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
 
     Elements.DetailPortsContainer.querySelectorAll(".DeletePortBtn").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -3392,8 +3524,98 @@ function SetupExtraServerFeatures() {
       if (Elements.DetailCpuSharesSelect) {
         Elements.DetailCpuSharesSelect.value = btn.dataset.cpu;
       }
+      if (Elements.DetailMemorySlider) {
+        Elements.DetailMemorySlider.value = btn.dataset.mem;
+        UpdateMemorySliderLabel(btn.dataset.mem);
+      }
+      if (Elements.DetailCpuSlider) {
+        Elements.DetailCpuSlider.value = btn.dataset.cpu;
+        UpdateCpuSliderLabel(btn.dataset.cpu);
+      }
     });
   });
+
+  if (Elements.DetailMemorySlider) {
+    Elements.DetailMemorySlider.addEventListener("input", (e) => {
+      Elements.DetailMemoryLimitSelect.value = e.target.value;
+      UpdateMemorySliderLabel(e.target.value);
+    });
+  }
+  if (Elements.DetailMemoryLimitSelect) {
+    Elements.DetailMemoryLimitSelect.addEventListener("change", (e) => {
+      if (Elements.DetailMemorySlider) {
+        Elements.DetailMemorySlider.value = e.target.value;
+      }
+      UpdateMemorySliderLabel(e.target.value);
+    });
+  }
+  if (Elements.DetailCpuSlider) {
+    Elements.DetailCpuSlider.addEventListener("input", (e) => {
+      Elements.DetailCpuSharesSelect.value = e.target.value;
+      UpdateCpuSliderLabel(e.target.value);
+    });
+  }
+  if (Elements.DetailCpuSharesSelect) {
+    Elements.DetailCpuSharesSelect.addEventListener("change", (e) => {
+      if (Elements.DetailCpuSlider) {
+        Elements.DetailCpuSlider.value = e.target.value;
+      }
+      UpdateCpuSliderLabel(e.target.value);
+    });
+  }
+
+  if (Elements.DetailPauseBtn) {
+    Elements.DetailPauseBtn.addEventListener("click", async () => {
+      const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+      if (!server) return;
+      const isPaused = server.Status === "Paused";
+      const action = isPaused ? "unpause" : "pause";
+      try {
+        const res = await fetch(`/api/servers/${ActiveDetailServerId}/${action}`, { method: "POST" });
+        const json = await res.json();
+        if (json.Success) {
+          ShowToast(`Server ${isPaused ? "resumed" : "paused"} successfully`, "success");
+          await FetchSingleServer(ActiveDetailServerId);
+        } else {
+          ShowToast(`Failed to ${action} server: ` + json.Error, "error");
+        }
+      } catch {
+        ShowToast(`Failed to ${action} server`, "error");
+      }
+    });
+  }
+
+  if (Elements.SystemBannerSaveBtn) {
+    Elements.SystemBannerSaveBtn.addEventListener("click", async () => {
+      const enabled = Elements.SystemBannerEnableSwitch.checked;
+      const type = Elements.SystemBannerTypeSelect.value;
+      const message = Elements.SystemBannerTextInput.value.trim();
+      try {
+        const res = await fetch("/api/system/banner", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Enabled: enabled, Type: type, Message: message }),
+        });
+        const json = await res.json();
+        if (json.Success) {
+          ShowToast("Announcement banner broadcast updated", "success");
+          sessionStorage.removeItem("qir_banner_dismissed");
+          FetchAnnouncementBanner();
+        } else {
+          ShowToast("Failed to update banner: " + json.Error, "error");
+        }
+      } catch {
+        ShowToast("Network error saving broadcast banner", "error");
+      }
+    });
+  }
+
+  if (Elements.GlobalAnnouncementCloseBtn) {
+    Elements.GlobalAnnouncementCloseBtn.addEventListener("click", () => {
+      Elements.GlobalAnnouncementBanner.classList.add("d-none");
+      sessionStorage.setItem("qir_banner_dismissed", "1");
+    });
+  }
 
   if (Elements.FileEditorWrapBtn) {
     Elements.FileEditorWrapBtn.addEventListener("click", () => {
@@ -3813,5 +4035,27 @@ async function HandleBulkRestart() {
     ShowToast("Network error executing bulk restart", "error");
   } finally {
     Elements.BulkRestartBtn.disabled = false;
+  }
+}
+
+function UpdateMemorySliderLabel(bytes) {
+  if (!Elements.DetailMemorySliderBadge) return;
+  const num = Number(bytes);
+  if (num === 0) {
+    Elements.DetailMemorySliderBadge.textContent = "Unlimited";
+  } else if (num >= 1073741824) {
+    Elements.DetailMemorySliderBadge.textContent = (num / 1073741824) + " GB";
+  } else {
+    Elements.DetailMemorySliderBadge.textContent = Math.round(num / (1024 * 1024)) + " MB";
+  }
+}
+
+function UpdateCpuSliderLabel(shares) {
+  if (!Elements.DetailCpuSliderBadge) return;
+  const num = Number(shares);
+  if (num === 0) {
+    Elements.DetailCpuSliderBadge.textContent = "Unlimited";
+  } else {
+    Elements.DetailCpuSliderBadge.textContent = (num / 100).toFixed(1) + " Cores";
   }
 }

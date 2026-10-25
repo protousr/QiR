@@ -61,6 +61,18 @@ export class ContainerManager {
         const container = this.Client.getContainer(containerId);
         await container.restart({ t: timeoutSeconds });
     }
+    async PauseContainer(containerId) {
+        const container = this.Client.getContainer(containerId);
+        await container.pause();
+    }
+    async UnpauseContainer(containerId) {
+        const container = this.Client.getContainer(containerId);
+        await container.unpause();
+    }
+    async KillContainer(containerId) {
+        const container = this.Client.getContainer(containerId);
+        await container.kill({ signal: "SIGKILL" });
+    }
     async RemoveContainer(containerId, force = true) {
         const container = this.Client.getContainer(containerId);
         await container.remove({ force, v: true });

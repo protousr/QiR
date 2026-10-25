@@ -76,6 +76,21 @@ export class ContainerManager {
     await container.restart({ t: timeoutSeconds });
   }
 
+  public async PauseContainer(containerId: string): Promise<void> {
+    const container = this.Client.getContainer(containerId);
+    await container.pause();
+  }
+
+  public async UnpauseContainer(containerId: string): Promise<void> {
+    const container = this.Client.getContainer(containerId);
+    await container.unpause();
+  }
+
+  public async KillContainer(containerId: string): Promise<void> {
+    const container = this.Client.getContainer(containerId);
+    await container.kill({ signal: "SIGKILL" });
+  }
+
   public async RemoveContainer(containerId: string, force: boolean = true): Promise<void> {
     const container = this.Client.getContainer(containerId);
     await container.remove({ force, v: true });

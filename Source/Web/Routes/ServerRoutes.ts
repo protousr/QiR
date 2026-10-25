@@ -132,4 +132,10 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get<{ Params: { Id: string } }>("/servers/:Id/export-archive", controller.ExportVolumeArchive);
   fastify.get<{ Params: { Id: string } }>("/servers/:Id/processes", controller.GetServerProcesses);
   fastify.post<{ Params: { Id: string }; Body?: { Image?: string } }>("/servers/:Id/redeploy", controller.RedeployServer);
+  fastify.post<{ Params: { Id: string } }>("/servers/:Id/pause", controller.PauseServer);
+  fastify.post<{ Params: { Id: string } }>("/servers/:Id/unpause", controller.UnpauseServer);
+  fastify.post<{ Params: { Id: string }; Body: { Port: number; Host?: string } }>(
+    "/servers/:Id/ports/probe",
+    controller.ProbeServerPort
+  );
 }

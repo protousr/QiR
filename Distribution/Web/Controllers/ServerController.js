@@ -604,4 +604,45 @@ export class ServerController {
             });
         }
     };
+    PauseServer = async (request, reply) => {
+        try {
+            await this.ServerService.PauseServer(request.params.Id);
+            reply.send({ Success: true, Message: "Server container paused" });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to pause server",
+            });
+        }
+    };
+    UnpauseServer = async (request, reply) => {
+        try {
+            await this.ServerService.UnpauseServer(request.params.Id);
+            reply.send({ Success: true, Message: "Server container unpaused" });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to unpause server",
+            });
+        }
+    };
+    ProbeServerPort = async (request, reply) => {
+        try {
+            const { Port, Host } = request.body;
+            if (!Port) {
+                reply.status(400).send({ Success: false, Error: "Port is required" });
+                return;
+            }
+            const result = await this.ServerService.ProbePort(request.params.Id, Number(Port), Host);
+            reply.send({ Success: true, Data: result });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to probe port",
+            });
+        }
+    };
 }

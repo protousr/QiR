@@ -114,6 +114,11 @@ export class DatabaseManager {
         NextRun TEXT NOT NULL,
         CreatedAt TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS Settings (
+        Key TEXT PRIMARY KEY,
+        Value TEXT NOT NULL
+      );
     `);
 
     try {
@@ -391,5 +396,17 @@ export class DatabaseManager {
   public DeleteSchedule(id: string): void {
     const stmt = this.Database.prepare("DELETE FROM Schedules WHERE Id = ?");
     stmt.run(id);
+  }
+
+  public GetSetting(key: string): string | null {
+    const row = this.Database.prepare("SELECT Value FROM Settings WHERE Key = ?").get(key) as { Value: string } | undefined;
+    return row ? row.Value : null;
+  }
+
+  public SetSetting(key: string, value: string): void {
+    const stmt = this.Database.prepare(
+      "INSERT INTO Settings (Key, Value) VALUES (?, ?) ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value"
+    );
+    stmt.run(key, value);
   }
 }

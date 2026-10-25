@@ -72,6 +72,11 @@ export class DatabaseManager {
         NextRun TEXT NOT NULL,
         CreatedAt TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS Settings (
+        Key TEXT PRIMARY KEY,
+        Value TEXT NOT NULL
+      );
     `);
         try {
             this.Database.exec("ALTER TABLE Users ADD COLUMN Role TEXT NOT NULL DEFAULT 'user'");
@@ -228,5 +233,13 @@ export class DatabaseManager {
     DeleteSchedule(id) {
         const stmt = this.Database.prepare("DELETE FROM Schedules WHERE Id = ?");
         stmt.run(id);
+    }
+    GetSetting(key) {
+        const row = this.Database.prepare("SELECT Value FROM Settings WHERE Key = ?").get(key);
+        return row ? row.Value : null;
+    }
+    SetSetting(key, value) {
+        const stmt = this.Database.prepare("INSERT INTO Settings (Key, Value) VALUES (?, ?) ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value");
+        stmt.run(key, value);
     }
 }

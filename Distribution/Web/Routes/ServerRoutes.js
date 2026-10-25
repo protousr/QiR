@@ -51,4 +51,7 @@ export async function ServerRoutes(fastify) {
     fastify.get("/servers/:Id/export-archive", controller.ExportVolumeArchive);
     fastify.get("/servers/:Id/processes", controller.GetServerProcesses);
     fastify.post("/servers/:Id/redeploy", controller.RedeployServer);
+    fastify.post("/servers/:Id/pause", controller.PauseServer);
+    fastify.post("/servers/:Id/unpause", controller.UnpauseServer);
+    fastify.post("/servers/:Id/ports/probe", controller.ProbeServerPort);
 }

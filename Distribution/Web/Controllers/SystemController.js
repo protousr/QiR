@@ -136,4 +136,53 @@ export class SystemController {
             });
         }
     };
+    GetAnnouncementBanner = async (request, reply) => {
+        try {
+            const bannerRaw = this.DatabaseManager.GetSetting("SystemAnnouncementBanner");
+            let banner = { Enabled: false, Message: "", Type: "info" };
+            if (bannerRaw) {
+                try {
+                    banner = JSON.parse(bannerRaw);
+                }
+                catch { }
+            }
+            reply.send({ Success: true, Data: banner });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to load banner",
+            });
+        }
+    };
+    SetAnnouncementBanner = async (request, reply) => {
+        try {
+            const user = request.User;
+            if (user?.Role !== "admin") {
+                reply.status(403).send({ Success: false, Error: "Admin privilege required" });
+                return;
+            }
+            const { Enabled, Message, Type } = request.body || {};
+            const bannerObj = {
+                Enabled: Boolean(Enabled),
+                Message: String(Message || "").trim(),
+                Type: Type || "info",
+            };
+            this.DatabaseManager.SetSetting("SystemAnnouncementBanner", JSON.stringify(bannerObj));
+            this.DatabaseManager.LogAudit({
+                Id: crypto.randomUUID(),
+                Timestamp: new Date().toISOString(),
+                Action: "SYSTEM_BANNER_UPDATE",
+                IpAddress: request.ip || "127.0.0.1",
+                Details: `Updated system banner: [${bannerObj.Type}] "${bannerObj.Message}" (Enabled: ${bannerObj.Enabled})`,
+            });
+            reply.send({ Success: true, Data: bannerObj, Message: "Announcement banner updated" });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to set banner",
+            });
+        }
+    };
 }

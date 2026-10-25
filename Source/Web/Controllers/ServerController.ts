@@ -865,4 +865,54 @@ export class ServerController {
       });
     }
   };
+
+  public PauseServer = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.PauseServer(request.params.Id);
+      reply.send({ Success: true, Message: "Server container paused" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to pause server",
+      });
+    }
+  };
+
+  public UnpauseServer = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.UnpauseServer(request.params.Id);
+      reply.send({ Success: true, Message: "Server container unpaused" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to unpause server",
+      });
+    }
+  };
+
+  public ProbeServerPort = async (
+    request: FastifyRequest<{ Params: { Id: string }; Body: { Port: number; Host?: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const { Port, Host } = request.body;
+      if (!Port) {
+        reply.status(400).send({ Success: false, Error: "Port is required" });
+        return;
+      }
+      const result = await this.ServerService.ProbePort(request.params.Id, Number(Port), Host);
+      reply.send({ Success: true, Data: result });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to probe port",
+      });
+    }
+  };
 }
