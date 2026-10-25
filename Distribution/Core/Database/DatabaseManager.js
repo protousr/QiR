@@ -28,7 +28,9 @@ export class DatabaseManager {
         PasswordHash TEXT NOT NULL,
         PasswordSalt TEXT NOT NULL,
         Role TEXT NOT NULL DEFAULT 'user',
-        CreatedAt TEXT NOT NULL
+        CreatedAt TEXT NOT NULL,
+        TotpSecret TEXT,
+        TotpEnabled INTEGER NOT NULL DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS Sessions (
@@ -76,6 +78,14 @@ export class DatabaseManager {
         }
         catch { }
         try {
+            this.Database.exec("ALTER TABLE Users ADD COLUMN TotpSecret TEXT");
+        }
+        catch { }
+        try {
+            this.Database.exec("ALTER TABLE Users ADD COLUMN TotpEnabled INTEGER NOT NULL DEFAULT 0");
+        }
+        catch { }
+        try {
             this.Database.exec("UPDATE Users SET Role = 'admin' WHERE Username = 'admin'");
         }
         catch { }
@@ -88,11 +98,11 @@ export class DatabaseManager {
         return row.count > 0;
     }
     CreateUser(user) {
-        const stmt = this.Database.prepare("INSERT INTO Users (Id, Username, PasswordHash, PasswordSalt, Role, CreatedAt) VALUES (?, ?, ?, ?, ?, ?)");
-        stmt.run(user.Id, user.Username, user.PasswordHash, user.PasswordSalt, user.Role || "user", user.CreatedAt);
+        const stmt = this.Database.prepare("INSERT INTO Users (Id, Username, PasswordHash, PasswordSalt, Role, CreatedAt, TotpSecret, TotpEnabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        stmt.run(user.Id, user.Username, user.PasswordHash, user.PasswordSalt, user.Role || "user", user.CreatedAt, user.TotpSecret || null, user.TotpEnabled || 0);
     }
     GetAllUsers() {
-        const stmt = this.Database.prepare("SELECT Id, Username, PasswordHash, PasswordSalt, Role, CreatedAt FROM Users ORDER BY CreatedAt ASC");
+        const stmt = this.Database.prepare("SELECT Id, Username, PasswordHash, PasswordSalt, Role, CreatedAt, TotpSecret, TotpEnabled FROM Users ORDER BY CreatedAt ASC");
         return stmt.all();
     }
     FindUserByUsername(username) {
@@ -102,6 +112,10 @@ export class DatabaseManager {
     FindUserById(id) {
         const stmt = this.Database.prepare("SELECT * FROM Users WHERE Id = ?");
         return stmt.get(id);
+    }
+    UpdateUserTotp(userId, secret, enabled) {
+        const stmt = this.Database.prepare("UPDATE Users SET TotpSecret = ?, TotpEnabled = ? WHERE Id = ?");
+        stmt.run(secret, enabled ? 1 : 0, userId);
     }
     DeleteUser(id) {
         const stmtSessions = this.Database.prepare("DELETE FROM Sessions WHERE UserId = ?");
@@ -116,6 +130,18 @@ export class DatabaseManager {
     FindSessionByTokenHash(tokenHash) {
         const stmt = this.Database.prepare("SELECT * FROM Sessions WHERE TokenHash = ?");
         return stmt.get(tokenHash);
+    }
+    GetUserSessions(userId) {
+        const stmt = this.Database.prepare("SELECT * FROM Sessions WHERE UserId = ? AND ExpiresAt > ? ORDER BY CreatedAt DESC");
+        return stmt.all(userId, new Date().toISOString());
+    }
+    DeleteSessionById(sessionId) {
+        const stmt = this.Database.prepare("DELETE FROM Sessions WHERE Id = ?");
+        stmt.run(sessionId);
+    }
+    DeleteOtherUserSessions(userId, currentTokenHash) {
+        const stmt = this.Database.prepare("DELETE FROM Sessions WHERE UserId = ? AND TokenHash != ?");
+        stmt.run(userId, currentTokenHash);
     }
     DeleteSessionByTokenHash(tokenHash) {
         const stmt = this.Database.prepare("DELETE FROM Sessions WHERE TokenHash = ?");
@@ -140,6 +166,13 @@ export class DatabaseManager {
     GetAuditLogs(limit = 50) {
         const stmt = this.Database.prepare("SELECT * FROM AuditLogs ORDER BY Timestamp DESC LIMIT ?");
         return stmt.all(limit);
+    }
+    GetFilteredAuditLogs(action, limit = 50) {
+        if (!action || action === "all") {
+            return this.GetAuditLogs(limit);
+        }
+        const stmt = this.Database.prepare("SELECT * FROM AuditLogs WHERE Action = ? ORDER BY Timestamp DESC LIMIT ?");
+        return stmt.all(action, limit);
     }
     GetAuditLogsForServer(serverId, limit = 50) {
         const stmt = this.Database.prepare("SELECT * FROM AuditLogs WHERE Details LIKE ? ORDER BY Timestamp DESC LIMIT ?");

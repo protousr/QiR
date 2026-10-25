@@ -13,6 +13,8 @@ export async function ServerRoutes(fastify) {
     fastify.delete("/servers/:Id", controller.DeleteServer);
     fastify.get("/servers/:Id/inspect", controller.InspectServer);
     fastify.patch("/servers/:Id/config", controller.UpdateServerConfig);
+    fastify.put("/servers/:Id/env", controller.UpdateEnvironmentVariables);
+    fastify.put("/servers/:Id/restart-policy", controller.UpdateRestartPolicy);
     fastify.post("/servers/:Id/command", controller.SendCommand);
     fastify.get("/servers/:Id/logs", controller.GetLogs);
     fastify.get("/servers/:Id/files", controller.ListVolumeFiles);
@@ -23,6 +25,10 @@ export async function ServerRoutes(fastify) {
     fastify.post("/servers/:Id/files/upload", controller.UploadVolumeFile);
     fastify.post("/servers/:Id/files/mkdir", controller.CreateVolumeDirectory);
     fastify.post("/servers/:Id/files/rename", controller.RenameVolumeFile);
+    fastify.post("/servers/:Id/files/extract", controller.ExtractVolumeArchive);
+    fastify.post("/servers/:Id/files/compress", controller.CompressVolumeFiles);
+    fastify.put("/servers/:Id/alert-webhook", controller.UpdateAlertWebhook);
+    fastify.post("/servers/:Id/test-alert-webhook", controller.TestAlertWebhook);
     fastify.get("/servers/:Id/backups", controller.ListBackups);
     fastify.post("/servers/:Id/backups", controller.CreateBackup);
     fastify.post("/servers/:Id/backups/:FileName/restore", controller.RestoreBackup);

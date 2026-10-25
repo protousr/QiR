@@ -18,6 +18,8 @@ export const CreateServerSchema = z.object({
     })
         .optional(),
     AutoRestart: z.boolean().optional(),
+    RestartPolicy: z.enum(["unless-stopped", "always", "on-failure", "no"]).optional(),
+    AlertWebhookUrl: z.string().optional(),
 });
 export const SendCommandSchema = z.object({
     Command: z.string().min(1),

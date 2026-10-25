@@ -2,6 +2,22 @@ import crypto from "node:crypto";
 import { DatabaseManager, IUserRecord, ISessionRecord } from "../Database/DatabaseManager.js";
 import { CryptoService } from "../Security/CryptoService.js";
 
+export interface ILoginResult {
+  RequiresTotp?: boolean;
+  User?: IUserRecord;
+  RawToken?: string;
+  ExpiresAt?: string;
+}
+
+export interface ISessionView {
+  Id: string;
+  IpAddress: string;
+  UserAgent: string;
+  CreatedAt: string;
+  ExpiresAt: string;
+  IsCurrent: boolean;
+}
+
 export class AuthService {
   private static Instance: AuthService;
   private readonly DatabaseManager: DatabaseManager;
@@ -40,6 +56,7 @@ export class AuthService {
       PasswordSalt: Salt,
       Role: "admin",
       CreatedAt: new Date().toISOString(),
+      TotpEnabled: 0,
     };
 
     this.DatabaseManager.CreateUser(user);
@@ -76,6 +93,7 @@ export class AuthService {
       PasswordSalt: Salt,
       Role: role,
       CreatedAt: new Date().toISOString(),
+      TotpEnabled: 0,
     };
 
     this.DatabaseManager.CreateUser(user);
@@ -110,12 +128,73 @@ export class AuthService {
     });
   }
 
+  public SetupTotp(userId: string): { Secret: string; Uri: string } {
+    const user = this.DatabaseManager.FindUserById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const secret = this.CryptoService.GenerateTotpSecret();
+    const uri = this.CryptoService.GenerateTotpUri(user.Username, secret);
+    this.DatabaseManager.UpdateUserTotp(userId, secret, false);
+    return { Secret: secret, Uri: uri };
+  }
+
+  public VerifyAndEnableTotp(userId: string, token: string): boolean {
+    const user = this.DatabaseManager.FindUserById(userId);
+    if (!user || !user.TotpSecret) {
+      return false;
+    }
+
+    const isValid = this.CryptoService.VerifyTotp(user.TotpSecret, token.trim());
+    if (!isValid) {
+      return false;
+    }
+
+    this.DatabaseManager.UpdateUserTotp(userId, user.TotpSecret, true);
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "2FA_ENABLED",
+      IpAddress: "system",
+      Details: `User ${user.Username} enabled 2FA.`,
+    });
+    return true;
+  }
+
+  public async DisableTotp(userId: string, password: string): Promise<boolean> {
+    const user = this.DatabaseManager.FindUserById(userId);
+    if (!user) {
+      return false;
+    }
+
+    const isValid = await this.CryptoService.VerifyPassword(
+      password,
+      user.PasswordHash,
+      user.PasswordSalt
+    );
+    if (!isValid) {
+      return false;
+    }
+
+    this.DatabaseManager.UpdateUserTotp(userId, null, false);
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "2FA_DISABLED",
+      IpAddress: "system",
+      Details: `User ${user.Username} disabled 2FA.`,
+    });
+    return true;
+  }
+
   public async Login(
     username: string,
     password: string,
     ipAddress: string,
-    userAgent: string
-  ): Promise<{ User: IUserRecord; RawToken: string; ExpiresAt: string } | null> {
+    userAgent: string,
+    totpCode?: string
+  ): Promise<ILoginResult | null> {
     this.DatabaseManager.CleanExpiredSessions();
 
     const user = this.DatabaseManager.FindUserByUsername(username.trim());
@@ -145,6 +224,23 @@ export class AuthService {
         Details: `Invalid password for: ${username}`,
       });
       return null;
+    }
+
+    if (user.TotpEnabled && user.TotpSecret) {
+      if (!totpCode) {
+        return { RequiresTotp: true };
+      }
+      const isTotpValid = this.CryptoService.VerifyTotp(user.TotpSecret, totpCode.trim());
+      if (!isTotpValid) {
+        this.DatabaseManager.LogAudit({
+          Id: crypto.randomUUID(),
+          Timestamp: new Date().toISOString(),
+          Action: "LOGIN_FAILED_2FA",
+          IpAddress: ipAddress,
+          Details: `Invalid 2FA code for: ${username}`,
+        });
+        return null;
+      }
     }
 
     const { RawToken, HashedToken } = this.CryptoService.GenerateSessionToken();
@@ -196,6 +292,28 @@ export class AuthService {
 
     const user = this.DatabaseManager.FindUserById(session.UserId);
     return user || null;
+  }
+
+  public GetActiveSessions(userId: string, currentRawToken?: string): ISessionView[] {
+    const currentHash = currentRawToken ? this.CryptoService.HashToken(currentRawToken) : "";
+    const sessions = this.DatabaseManager.GetUserSessions(userId);
+    return sessions.map((s) => ({
+      Id: s.Id,
+      IpAddress: s.IpAddress,
+      UserAgent: s.UserAgent,
+      CreatedAt: s.CreatedAt,
+      ExpiresAt: s.ExpiresAt,
+      IsCurrent: s.TokenHash === currentHash,
+    }));
+  }
+
+  public RevokeSession(sessionId: string): void {
+    this.DatabaseManager.DeleteSessionById(sessionId);
+  }
+
+  public RevokeOtherSessions(userId: string, currentRawToken: string): void {
+    const currentHash = this.CryptoService.HashToken(currentRawToken);
+    this.DatabaseManager.DeleteOtherUserSessions(userId, currentHash);
   }
 
   public Logout(rawToken: string): void {

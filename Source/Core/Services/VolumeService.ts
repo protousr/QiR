@@ -1,6 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { ConfigInstance } from "../../Config/EnvironmentConfig.js";
+
+const execFileAsync = promisify(execFile);
 
 export class VolumeService {
   private readonly BaseDirectory: string;
@@ -17,6 +21,16 @@ export class VolumeService {
     return path.resolve(this.BaseDirectory, "Servers", serverId);
   }
 
+  public GetSafePath(serverId: string, relativePath: string = ""): string {
+    const volumePath = path.resolve(this.GetServerVolumePath(serverId));
+    const targetPath = path.resolve(volumePath, relativePath);
+    const relative = path.relative(volumePath, targetPath);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw new Error("Access denied: Path traversal detected");
+    }
+    return targetPath;
+  }
+
   public async EnsureServerVolume(serverId: string): Promise<string> {
     const volumePath = this.GetServerVolumePath(serverId);
     await fs.mkdir(volumePath, { recursive: true });
@@ -28,9 +42,9 @@ export class VolumeService {
     files?: Record<string, string>
   ): Promise<void> {
     if (!files) return;
-    const volumePath = await this.EnsureServerVolume(serverId);
+    await this.EnsureServerVolume(serverId);
     for (const [filename, content] of Object.entries(files)) {
-      const targetPath = path.resolve(volumePath, filename);
+      const targetPath = this.GetSafePath(serverId, filename);
       try {
         await fs.access(targetPath);
       } catch {
@@ -53,7 +67,7 @@ export class VolumeService {
     serverId: string,
     subPath: string = ""
   ): Promise<Array<{ Name: string; IsDirectory: boolean; Size: number }>> {
-    const targetPath = path.resolve(this.GetServerVolumePath(serverId), subPath);
+    const targetPath = this.GetSafePath(serverId, subPath);
     await fs.mkdir(targetPath, { recursive: true });
     const entries = await fs.readdir(targetPath, { withFileTypes: true });
 
@@ -81,7 +95,7 @@ export class VolumeService {
   }
 
   public async ReadFile(serverId: string, relativeFilePath: string): Promise<string> {
-    const filePath = path.resolve(this.GetServerVolumePath(serverId), relativeFilePath);
+    const filePath = this.GetSafePath(serverId, relativeFilePath);
     return await fs.readFile(filePath, "utf8");
   }
 
@@ -90,18 +104,18 @@ export class VolumeService {
     relativeFilePath: string,
     content: string
   ): Promise<void> {
-    const filePath = path.resolve(this.GetServerVolumePath(serverId), relativeFilePath);
+    const filePath = this.GetSafePath(serverId, relativeFilePath);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, content, "utf8");
   }
 
   public async DeleteFile(serverId: string, relativeFilePath: string): Promise<void> {
-    const filePath = path.resolve(this.GetServerVolumePath(serverId), relativeFilePath);
+    const filePath = this.GetSafePath(serverId, relativeFilePath);
     await fs.rm(filePath, { recursive: true, force: true });
   }
 
   public async CreateDirectory(serverId: string, relativeSubPath: string): Promise<void> {
-    const dirPath = path.resolve(this.GetServerVolumePath(serverId), relativeSubPath);
+    const dirPath = this.GetSafePath(serverId, relativeSubPath);
     await fs.mkdir(dirPath, { recursive: true });
   }
 
@@ -110,14 +124,14 @@ export class VolumeService {
     oldRelativePath: string,
     newRelativePath: string
   ): Promise<void> {
-    const oldPath = path.resolve(this.GetServerVolumePath(serverId), oldRelativePath);
-    const newPath = path.resolve(this.GetServerVolumePath(serverId), newRelativePath);
+    const oldPath = this.GetSafePath(serverId, oldRelativePath);
+    const newPath = this.GetSafePath(serverId, newRelativePath);
     await fs.mkdir(path.dirname(newPath), { recursive: true });
     await fs.rename(oldPath, newPath);
   }
 
   public async GetFileBuffer(serverId: string, relativeFilePath: string): Promise<Buffer> {
-    const filePath = path.resolve(this.GetServerVolumePath(serverId), relativeFilePath);
+    const filePath = this.GetSafePath(serverId, relativeFilePath);
     return await fs.readFile(filePath);
   }
 
@@ -126,8 +140,46 @@ export class VolumeService {
     relativeFilePath: string,
     buffer: Buffer
   ): Promise<void> {
-    const filePath = path.resolve(this.GetServerVolumePath(serverId), relativeFilePath);
+    const filePath = this.GetSafePath(serverId, relativeFilePath);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, buffer);
+  }
+
+  public async ExtractArchive(
+    serverId: string,
+    relativeArchivePath: string,
+    targetRelativeDir: string = ""
+  ): Promise<void> {
+    const archivePath = this.GetSafePath(serverId, relativeArchivePath);
+    const destDir = this.GetSafePath(serverId, targetRelativeDir);
+    await fs.mkdir(destDir, { recursive: true });
+    await execFileAsync("tar", ["-xf", archivePath, "-C", destDir]);
+  }
+
+  public async CompressFiles(
+    serverId: string,
+    relativePaths: string[],
+    archiveName: string = "archive.tar.gz"
+  ): Promise<string> {
+    const safeArchiveName = archiveName.endsWith(".tar.gz") || archiveName.endsWith(".zip")
+      ? archiveName
+      : `${archiveName}.tar.gz`;
+    const archivePath = this.GetSafePath(serverId, safeArchiveName);
+    const volumePath = this.GetSafePath(serverId, "");
+
+    const verifiedPaths = relativePaths.map((p) => {
+      this.GetSafePath(serverId, p);
+      return p;
+    });
+
+    const tarArgs = ["-czf", archivePath, "-C", volumePath];
+    if (verifiedPaths.length > 0) {
+      tarArgs.push(...verifiedPaths);
+    } else {
+      tarArgs.push(".");
+    }
+
+    await execFileAsync("tar", tarArgs);
+    return safeArchiveName;
   }
 }

@@ -4,4 +4,6 @@ export async function SystemRoutes(fastify) {
     fastify.addHook("preHandler", RequireAuth);
     const controller = new SystemController();
     fastify.get("/system/status", controller.GetSystemStatus);
+    fastify.get("/system/audit", controller.GetAuditLogs);
+    fastify.get("/system/audit/export", controller.ExportAuditLogs);
 }

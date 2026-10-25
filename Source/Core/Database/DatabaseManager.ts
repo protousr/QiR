@@ -11,6 +11,8 @@ export interface IUserRecord {
   PasswordSalt: string;
   Role: "admin" | "user";
   CreatedAt: string;
+  TotpSecret?: string | null;
+  TotpEnabled?: number;
 }
 
 export interface ISessionRecord {
@@ -68,7 +70,9 @@ export class DatabaseManager {
         PasswordHash TEXT NOT NULL,
         PasswordSalt TEXT NOT NULL,
         Role TEXT NOT NULL DEFAULT 'user',
-        CreatedAt TEXT NOT NULL
+        CreatedAt TEXT NOT NULL,
+        TotpSecret TEXT,
+        TotpEnabled INTEGER NOT NULL DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS Sessions (
@@ -116,6 +120,12 @@ export class DatabaseManager {
       this.Database.exec("ALTER TABLE Users ADD COLUMN Role TEXT NOT NULL DEFAULT 'user'");
     } catch {}
     try {
+      this.Database.exec("ALTER TABLE Users ADD COLUMN TotpSecret TEXT");
+    } catch {}
+    try {
+      this.Database.exec("ALTER TABLE Users ADD COLUMN TotpEnabled INTEGER NOT NULL DEFAULT 0");
+    } catch {}
+    try {
       this.Database.exec("UPDATE Users SET Role = 'admin' WHERE Username = 'admin'");
     } catch {}
   }
@@ -133,7 +143,7 @@ export class DatabaseManager {
 
   public CreateUser(user: IUserRecord): void {
     const stmt = this.Database.prepare(
-      "INSERT INTO Users (Id, Username, PasswordHash, PasswordSalt, Role, CreatedAt) VALUES (?, ?, ?, ?, ?, ?)"
+      "INSERT INTO Users (Id, Username, PasswordHash, PasswordSalt, Role, CreatedAt, TotpSecret, TotpEnabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     );
     stmt.run(
       user.Id,
@@ -141,13 +151,15 @@ export class DatabaseManager {
       user.PasswordHash,
       user.PasswordSalt,
       user.Role || "user",
-      user.CreatedAt
+      user.CreatedAt,
+      user.TotpSecret || null,
+      user.TotpEnabled || 0
     );
   }
 
   public GetAllUsers(): IUserRecord[] {
     const stmt = this.Database.prepare(
-      "SELECT Id, Username, PasswordHash, PasswordSalt, Role, CreatedAt FROM Users ORDER BY CreatedAt ASC"
+      "SELECT Id, Username, PasswordHash, PasswordSalt, Role, CreatedAt, TotpSecret, TotpEnabled FROM Users ORDER BY CreatedAt ASC"
     );
     return stmt.all() as unknown as IUserRecord[];
   }
@@ -160,6 +172,13 @@ export class DatabaseManager {
   public FindUserById(id: string): IUserRecord | undefined {
     const stmt = this.Database.prepare("SELECT * FROM Users WHERE Id = ?");
     return stmt.get(id) as IUserRecord | undefined;
+  }
+
+  public UpdateUserTotp(userId: string, secret: string | null, enabled: boolean): void {
+    const stmt = this.Database.prepare(
+      "UPDATE Users SET TotpSecret = ?, TotpEnabled = ? WHERE Id = ?"
+    );
+    stmt.run(secret, enabled ? 1 : 0, userId);
   }
 
   public DeleteUser(id: string): void {
@@ -187,6 +206,25 @@ export class DatabaseManager {
   public FindSessionByTokenHash(tokenHash: string): ISessionRecord | undefined {
     const stmt = this.Database.prepare("SELECT * FROM Sessions WHERE TokenHash = ?");
     return stmt.get(tokenHash) as ISessionRecord | undefined;
+  }
+
+  public GetUserSessions(userId: string): ISessionRecord[] {
+    const stmt = this.Database.prepare(
+      "SELECT * FROM Sessions WHERE UserId = ? AND ExpiresAt > ? ORDER BY CreatedAt DESC"
+    );
+    return stmt.all(userId, new Date().toISOString()) as unknown as ISessionRecord[];
+  }
+
+  public DeleteSessionById(sessionId: string): void {
+    const stmt = this.Database.prepare("DELETE FROM Sessions WHERE Id = ?");
+    stmt.run(sessionId);
+  }
+
+  public DeleteOtherUserSessions(userId: string, currentTokenHash: string): void {
+    const stmt = this.Database.prepare(
+      "DELETE FROM Sessions WHERE UserId = ? AND TokenHash != ?"
+    );
+    stmt.run(userId, currentTokenHash);
   }
 
   public DeleteSessionByTokenHash(tokenHash: string): void {
@@ -223,6 +261,16 @@ export class DatabaseManager {
       "SELECT * FROM AuditLogs ORDER BY Timestamp DESC LIMIT ?"
     );
     return stmt.all(limit) as unknown as IAuditLogRecord[];
+  }
+
+  public GetFilteredAuditLogs(action?: string, limit: number = 50): IAuditLogRecord[] {
+    if (!action || action === "all") {
+      return this.GetAuditLogs(limit);
+    }
+    const stmt = this.Database.prepare(
+      "SELECT * FROM AuditLogs WHERE Action = ? ORDER BY Timestamp DESC LIMIT ?"
+    );
+    return stmt.all(action, limit) as unknown as IAuditLogRecord[];
   }
 
   public GetAuditLogsForServer(serverId: string, limit: number = 50): IAuditLogRecord[] {

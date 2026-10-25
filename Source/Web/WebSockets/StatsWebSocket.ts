@@ -15,6 +15,21 @@ export async function StatsWebSocketRoute(fastify: FastifyInstance): Promise<voi
       socket: WebSocket,
       request: FastifyRequest<{ Params: { Id: string }; Querystring: { token?: string } }>
     ) => {
+      const origin = request.headers.origin;
+      const host = request.headers.host;
+      if (origin && host) {
+        try {
+          const originHost = new URL(origin).host;
+          if (originHost !== host) {
+            socket.close(1008, "Cross-origin WebSocket rejected");
+            return;
+          }
+        } catch {
+          socket.close(1008, "Invalid origin");
+          return;
+        }
+      }
+
       const token = request.cookies?.["qir_session"] || request.query?.token;
       const user = token ? authService.ValidateSession(token) : null;
 
@@ -60,11 +75,11 @@ export async function StatsWebSocketRoute(fastify: FastifyInstance): Promise<voi
           socket.send(
             JSON.stringify({
               Type: "Error",
-              Data: err instanceof Error ? err.message : "Failed to attach stats monitor",
+              Data: err instanceof Error ? err.message : "Failed to connect to stats.",
             })
           );
-          socket.close();
         }
+        socket.close();
       }
     }
   );

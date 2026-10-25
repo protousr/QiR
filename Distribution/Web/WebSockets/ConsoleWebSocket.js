@@ -4,6 +4,21 @@ export async function ConsoleWebSocketRoute(fastify) {
     const serverService = ServerService.GetInstance();
     const authService = AuthService.GetInstance();
     fastify.get("/ws/servers/:Id/console", { websocket: true }, async (socket, request) => {
+        const origin = request.headers.origin;
+        const host = request.headers.host;
+        if (origin && host) {
+            try {
+                const originHost = new URL(origin).host;
+                if (originHost !== host) {
+                    socket.close(1008, "Cross-origin WebSocket rejected");
+                    return;
+                }
+            }
+            catch {
+                socket.close(1008, "Invalid origin");
+                return;
+            }
+        }
         const token = request.cookies?.["qir_session"] || request.query?.token;
         const user = token ? authService.ValidateSession(token) : null;
         if (!user) {
@@ -39,26 +54,18 @@ export async function ConsoleWebSocketRoute(fastify) {
                     let commandToExecute = text;
                     try {
                         const parsed = JSON.parse(text);
-                        if (parsed.Command) {
-                            commandToExecute = parsed.Command;
+                        if (parsed.Type === "Input" && typeof parsed.Data === "string") {
+                            commandToExecute = parsed.Data;
                         }
                     }
-                    catch {
-                        commandToExecute = text;
-                    }
-                    const output = await serverService.SendCommand(serverId, commandToExecute);
-                    if (socket.readyState === socket.OPEN && output) {
-                        socket.send(JSON.stringify({
-                            Type: "CommandOutput",
-                            Data: output,
-                        }));
-                    }
+                    catch { }
+                    await serverService.SendCommand(serverId, commandToExecute);
                 }
-                catch (cmdErr) {
+                catch (err) {
                     if (socket.readyState === socket.OPEN) {
                         socket.send(JSON.stringify({
                             Type: "Error",
-                            Data: cmdErr instanceof Error ? cmdErr.message : "Command execution failed",
+                            Data: err instanceof Error ? err.message : "Command execution failed.",
                         }));
                     }
                 }
@@ -74,10 +81,10 @@ export async function ConsoleWebSocketRoute(fastify) {
             if (socket.readyState === socket.OPEN) {
                 socket.send(JSON.stringify({
                     Type: "Error",
-                    Data: err instanceof Error ? err.message : "Failed to attach console",
+                    Data: err instanceof Error ? err.message : "Failed to connect to console.",
                 }));
-                socket.close();
             }
+            socket.close();
         }
     });
 }

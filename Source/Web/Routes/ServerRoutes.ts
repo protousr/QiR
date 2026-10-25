@@ -19,6 +19,14 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
     Params: { Id: string };
     Body: { EnvironmentVariables?: Record<string, string>; AutoRestart?: boolean };
   }>("/servers/:Id/config", controller.UpdateServerConfig);
+  fastify.put<{
+    Params: { Id: string };
+    Body: { EnvironmentVariables: Record<string, string> };
+  }>("/servers/:Id/env", controller.UpdateEnvironmentVariables);
+  fastify.put<{
+    Params: { Id: string };
+    Body: { RestartPolicy: "unless-stopped" | "always" | "on-failure" | "no" };
+  }>("/servers/:Id/restart-policy", controller.UpdateRestartPolicy);
   fastify.post<{ Params: { Id: string } }>("/servers/:Id/command", controller.SendCommand);
   fastify.get<{ Params: { Id: string }; Querystring: { Tail?: string } }>(
     "/servers/:Id/logs",
@@ -56,6 +64,22 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
     Params: { Id: string };
     Body: { OldPath: string; NewPath: string };
   }>("/servers/:Id/files/rename", controller.RenameVolumeFile);
+  fastify.post<{
+    Params: { Id: string };
+    Body: { ArchivePath: string; Destination?: string };
+  }>("/servers/:Id/files/extract", controller.ExtractVolumeArchive);
+  fastify.post<{
+    Params: { Id: string };
+    Body: { Paths?: string[]; ArchiveName?: string };
+  }>("/servers/:Id/files/compress", controller.CompressVolumeFiles);
+  fastify.put<{
+    Params: { Id: string };
+    Body: { AlertWebhookUrl?: string };
+  }>("/servers/:Id/alert-webhook", controller.UpdateAlertWebhook);
+  fastify.post<{ Params: { Id: string } }>(
+    "/servers/:Id/test-alert-webhook",
+    controller.TestAlertWebhook
+  );
   fastify.get<{ Params: { Id: string } }>("/servers/:Id/backups", controller.ListBackups);
   fastify.post<{ Params: { Id: string }; Body?: { Name?: string } }>(
     "/servers/:Id/backups",

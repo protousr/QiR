@@ -35,7 +35,7 @@ export class BaseTemplate {
             CpuShares: input.Limits?.CpuShares,
             NanoCpus: input.Limits?.NanoCpus,
             RestartPolicy: {
-                Name: input.AutoRestart ? "unless-stopped" : "no",
+                Name: input.RestartPolicy || (input.AutoRestart ? "unless-stopped" : "no"),
             },
             AttachStdin: true,
             AttachStdout: true,

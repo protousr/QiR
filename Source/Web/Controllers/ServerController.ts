@@ -293,6 +293,48 @@ export class ServerController {
     }
   };
 
+  public UpdateEnvironmentVariables = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { EnvironmentVariables: Record<string, string> };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const updated = await this.ServerService.UpdateEnvironmentVariables(
+        request.params.Id,
+        request.body.EnvironmentVariables
+      );
+      reply.send({ Success: true, Data: updated });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to update environment variables",
+      });
+    }
+  };
+
+  public UpdateRestartPolicy = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { RestartPolicy: "unless-stopped" | "always" | "on-failure" | "no" };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const updated = await this.ServerService.UpdateRestartPolicy(
+        request.params.Id,
+        request.body.RestartPolicy
+      );
+      reply.send({ Success: true, Data: updated });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to update restart policy",
+      });
+    }
+  };
+
   public DownloadVolumeFile = async (
     request: FastifyRequest<{ Params: { Id: string }; Querystring: { FilePath: string } }>,
     reply: FastifyReply
@@ -372,6 +414,86 @@ export class ServerController {
       reply.status(500).send({
         Success: false,
         Error: err instanceof Error ? err.message : "Failed to rename",
+      });
+    }
+  };
+
+  public ExtractVolumeArchive = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { ArchivePath: string; Destination?: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.GetVolumeService().ExtractArchive(
+        request.params.Id,
+        request.body.ArchivePath,
+        request.body.Destination || ""
+      );
+      reply.send({ Success: true, Message: "Archive extracted successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to extract archive",
+      });
+    }
+  };
+
+  public CompressVolumeFiles = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { Paths?: string[]; ArchiveName?: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const archiveName = await this.ServerService.GetVolumeService().CompressFiles(
+        request.params.Id,
+        request.body.Paths || [],
+        request.body.ArchiveName || "archive.tar.gz"
+      );
+      reply.send({ Success: true, Data: { ArchiveName: archiveName } });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to compress files",
+      });
+    }
+  };
+
+  public UpdateAlertWebhook = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { AlertWebhookUrl?: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const updated = await this.ServerService.UpdateAlertWebhook(
+        request.params.Id,
+        request.body.AlertWebhookUrl
+      );
+      reply.send({ Success: true, Data: updated });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to update alert webhook",
+      });
+    }
+  };
+
+  public TestAlertWebhook = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.TestAlertWebhook(request.params.Id);
+      reply.send({ Success: true, Message: "Alert notification dispatched successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to dispatch alert",
       });
     }
   };

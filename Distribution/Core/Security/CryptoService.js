@@ -72,4 +72,63 @@ export class CryptoService {
     HashToken(rawToken) {
         return crypto.createHash("sha256").update(rawToken).digest("hex");
     }
+    Base32Decode(encoded) {
+        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        const cleaned = encoded.toUpperCase().replace(/=+$/, "").replace(/\s+/g, "");
+        let bits = 0;
+        let value = 0;
+        const output = [];
+        for (let i = 0; i < cleaned.length; i++) {
+            const idx = alphabet.indexOf(cleaned[i]);
+            if (idx === -1)
+                continue;
+            value = (value << 5) | idx;
+            bits += 5;
+            if (bits >= 8) {
+                output.push((value >>> (bits - 8)) & 255);
+                bits -= 8;
+            }
+        }
+        return Buffer.from(output);
+    }
+    GenerateTotpSecret() {
+        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        const bytes = crypto.randomBytes(20);
+        let secret = "";
+        for (let i = 0; i < bytes.length; i++) {
+            secret += alphabet[bytes[i] % 32];
+        }
+        return secret;
+    }
+    GenerateTotpUri(username, secret) {
+        return `otpauth://totp/QiR:${encodeURIComponent(username)}?secret=${secret}&issuer=QiR`;
+    }
+    GenerateTotpCode(secret, timestampSeconds = Math.floor(Date.now() / 1000)) {
+        const key = this.Base32Decode(secret);
+        const counter = Math.floor(timestampSeconds / 30);
+        const counterBuffer = Buffer.alloc(8);
+        counterBuffer.writeBigInt64BE(BigInt(counter));
+        const hmac = crypto.createHmac("sha1", key);
+        hmac.update(counterBuffer);
+        const digest = hmac.digest();
+        const offset = digest[digest.length - 1] & 0x0f;
+        const binary = ((digest[offset] & 0x7f) << 24) |
+            ((digest[offset + 1] & 0xff) << 16) |
+            ((digest[offset + 2] & 0xff) << 8) |
+            (digest[offset + 3] & 0xff);
+        const otp = binary % 1000000;
+        return otp.toString().padStart(6, "0");
+    }
+    VerifyTotp(secret, token, windowSteps = 1) {
+        if (!token || token.length !== 6)
+            return false;
+        const now = Math.floor(Date.now() / 1000);
+        for (let step = -windowSteps; step <= windowSteps; step++) {
+            const expectedCode = this.GenerateTotpCode(secret, now + step * 30);
+            if (expectedCode === token) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

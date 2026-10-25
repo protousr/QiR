@@ -65,12 +65,16 @@ export class ContainerManager {
         const container = this.Client.getContainer(containerId);
         await container.remove({ force, v: true });
     }
-    async UpdateContainerLimits(containerId, memoryBytes, nanoCpus) {
+    async UpdateContainerLimits(containerId, memoryBytes, nanoCpus, restartPolicy) {
         const container = this.Client.getContainer(containerId);
-        await container.update({
-            Memory: memoryBytes,
-            NanoCPUs: nanoCpus,
-        });
+        const updateOptions = {};
+        if (typeof memoryBytes === "number")
+            updateOptions.Memory = memoryBytes;
+        if (typeof nanoCpus === "number")
+            updateOptions.NanoCPUs = nanoCpus;
+        if (restartPolicy)
+            updateOptions.RestartPolicy = { Name: restartPolicy };
+        await container.update(updateOptions);
     }
     async RecreateContainerWithNewPorts(oldContainerId, newPorts) {
         const inspect = await this.InspectContainer(oldContainerId);
@@ -101,6 +105,34 @@ export class ContainerManager {
                 NanoCpus: inspect.HostConfig.NanoCpus,
                 RestartPolicy: inspect.HostConfig.RestartPolicy,
             },
+            AttachStdin: inspect.Config.AttachStdin,
+            AttachStdout: inspect.Config.AttachStdout,
+            AttachStderr: inspect.Config.AttachStderr,
+            OpenStdin: inspect.Config.OpenStdin,
+            StdinOnce: inspect.Config.StdinOnce,
+            Tty: inspect.Config.Tty,
+        });
+        if (wasRunning) {
+            await newContainer.start();
+        }
+        return newContainer.id;
+    }
+    async RecreateContainerWithNewEnv(oldContainerId, newEnv) {
+        const inspect = await this.InspectContainer(oldContainerId);
+        const wasRunning = Boolean(inspect.State.Running);
+        const containerName = inspect.Name.replace(/^\//, "");
+        if (wasRunning) {
+            await this.StopContainer(oldContainerId, 5);
+        }
+        await this.RemoveContainer(oldContainerId, true);
+        const envArray = Object.entries(newEnv).map(([k, v]) => `${k}=${v}`);
+        const newContainer = await this.Client.createContainer({
+            name: containerName,
+            Image: inspect.Config.Image,
+            Cmd: inspect.Config.Cmd,
+            Env: envArray,
+            ExposedPorts: inspect.Config.ExposedPorts,
+            HostConfig: inspect.HostConfig,
             AttachStdin: inspect.Config.AttachStdin,
             AttachStdout: inspect.Config.AttachStdout,
             AttachStderr: inspect.Config.AttachStderr,

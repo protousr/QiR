@@ -23,6 +23,13 @@ export async function BuildApp() {
         trustProxy: ConfigInstance.TrustProxy,
     });
     app.setErrorHandler(GlobalErrorHandler);
+    app.addHook("onSend", async (request, reply) => {
+        reply.header("X-Frame-Options", "DENY");
+        reply.header("X-Content-Type-Options", "nosniff");
+        reply.header("Referrer-Policy", "strict-origin-when-cross-origin");
+        reply.header("X-XSS-Protection", "1; mode=block");
+        reply.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    });
     await app.register(fastifyCors, {
         origin: true,
         credentials: true,

@@ -14,6 +14,21 @@ export async function ConsoleWebSocketRoute(fastify: FastifyInstance): Promise<v
       socket: WebSocket,
       request: FastifyRequest<{ Params: { Id: string }; Querystring: { token?: string } }>
     ) => {
+      const origin = request.headers.origin;
+      const host = request.headers.host;
+      if (origin && host) {
+        try {
+          const originHost = new URL(origin).host;
+          if (originHost !== host) {
+            socket.close(1008, "Cross-origin WebSocket rejected");
+            return;
+          }
+        } catch {
+          socket.close(1008, "Invalid origin");
+          return;
+        }
+      }
+
       const token = request.cookies?.["qir_session"] || request.query?.token;
       const user = token ? authService.ValidateSession(token) : null;
 
@@ -60,29 +75,19 @@ export async function ConsoleWebSocketRoute(fastify: FastifyInstance): Promise<v
             let commandToExecute = text;
 
             try {
-              const parsed = JSON.parse(text) as { Command?: string };
-              if (parsed.Command) {
-                commandToExecute = parsed.Command;
+              const parsed = JSON.parse(text);
+              if (parsed.Type === "Input" && typeof parsed.Data === "string") {
+                commandToExecute = parsed.Data;
               }
-            } catch {
-              commandToExecute = text;
-            }
+            } catch {}
 
-            const output = await serverService.SendCommand(serverId, commandToExecute);
-            if (socket.readyState === socket.OPEN && output) {
-              socket.send(
-                JSON.stringify({
-                  Type: "CommandOutput",
-                  Data: output,
-                })
-              );
-            }
-          } catch (cmdErr) {
+            await serverService.SendCommand(serverId, commandToExecute);
+          } catch (err) {
             if (socket.readyState === socket.OPEN) {
               socket.send(
                 JSON.stringify({
                   Type: "Error",
-                  Data: cmdErr instanceof Error ? cmdErr.message : "Command execution failed",
+                  Data: err instanceof Error ? err.message : "Command execution failed.",
                 })
               );
             }
@@ -101,11 +106,11 @@ export async function ConsoleWebSocketRoute(fastify: FastifyInstance): Promise<v
           socket.send(
             JSON.stringify({
               Type: "Error",
-              Data: err instanceof Error ? err.message : "Failed to attach console",
+              Data: err instanceof Error ? err.message : "Failed to connect to console.",
             })
           );
-          socket.close();
         }
+        socket.close();
       }
     }
   );

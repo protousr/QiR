@@ -1,3 +1,25 @@
+
+function ShowToast(message, type = "info", duration = 3500) {
+  const container = document.getElementById("ToastContainer");
+  if (!container) return;
+  const toast = document.createElement("div");
+  toast.className = `qir-toast toast-type-${type} shadow-lg d-flex align-items-center gap-2 px-3 py-2 rounded-3 border`;
+  const icon = type === "success" ? "bi-check-circle-fill text-success" :
+               type === "error" ? "bi-exclamation-octagon-fill text-danger" :
+               type === "warning" ? "bi-exclamation-triangle-fill text-warning" : "bi-info-circle-fill text-info";
+  toast.innerHTML = `
+    <i class="bi ${icon} fs-5"></i>
+    <div class="small fw-medium flex-grow-1 text-truncate">${escapeHtml(String(message))}</div>
+    <button type="button" class="btn-close btn-close-white btn-sm ms-2" aria-label="Close"></button>
+  `;
+  container.appendChild(toast);
+  toast.querySelector(".btn-close").onclick = () => toast.remove();
+  setTimeout(() => {
+    toast.classList.add("fade-out");
+    setTimeout(() => toast.remove(), 250);
+  }, duration);
+}
+
 let Templates = [];
 let Servers = [];
 let UsersList = [];
@@ -11,9 +33,27 @@ let CurrentAuthToken = null;
 let CurrentUser = null;
 let PollingIntervals = [];
 let TerminalHistory = [];
+let ActiveServerFilter = "all";
+let DbPasswordMasked = true;
+let EnvValuesMasked = true;
 let HistoryPointer = -1;
 
 const Elements = {
+  ThemeSelectBtns: document.querySelectorAll(".ThemeSelectBtn"),
+  ResourceMetricsCanvas: document.getElementById("ResourceMetricsCanvas"),
+  ChartCpuLabel: document.getElementById("ChartCpuLabel"),
+  ChartRamLabel: document.getElementById("ChartRamLabel"),
+  DetailFilesCompressBtn: document.getElementById("DetailFilesCompressBtn"),
+  EnvImportDotEnvBtn: document.getElementById("EnvImportDotEnvBtn"),
+  BulkDotEnvModal: document.getElementById("BulkDotEnvModal"),
+  BulkDotEnvTextarea: document.getElementById("BulkDotEnvTextarea"),
+  BulkDotEnvApplyBtn: document.getElementById("BulkDotEnvApplyBtn"),
+  DetailAlertWebhookInput: document.getElementById("DetailAlertWebhookInput"),
+  DetailCrashCountBadge: document.getElementById("DetailCrashCountBadge"),
+  DetailSaveAlertWebhookBtn: document.getElementById("DetailSaveAlertWebhookBtn"),
+  DetailTestAlertWebhookBtn: document.getElementById("DetailTestAlertWebhookBtn"),
+  DetailExportAuditCsvBtn: document.getElementById("DetailExportAuditCsvBtn"),
+  DetailExportAuditJsonBtn: document.getElementById("DetailExportAuditJsonBtn"),
   AuthOverlay: document.getElementById("AuthOverlay"),
   AuthTitle: document.getElementById("AuthTitle"),
   AuthSubtitle: document.getElementById("AuthSubtitle"),
@@ -359,17 +399,26 @@ function SetupAuthEventListeners() {
     Elements.LoginSubmitBtn.textContent = "Signing In...";
 
     try {
+      const totpInput = document.getElementById("LoginTotpCode");
+      const totpVal = totpInput && !document.getElementById("LoginTotpGroup").classList.contains("d-none") ? totpInput.value.trim() : undefined;
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           Username: Elements.LoginUsername.value.trim(),
           Password: Elements.LoginPassword.value,
+          TotpCode: totpVal,
         }),
       });
 
       const json = await res.json();
       if (json.Success) {
+        if (json.Data && json.Data.RequiresTotp) {
+          document.getElementById("LoginTotpGroup").classList.remove("d-none");
+          totpInput.focus();
+          ShowToast("2FA required: Enter your 6-digit Authenticator code", "warning");
+          return;
+        }
         CurrentUser = json.Data.User;
         CurrentAuthToken = json.Data.Token;
         OnAuthenticated();
@@ -533,7 +582,11 @@ function SwitchView(viewName) {
     Elements.NavTemplates.classList.add("active");
     Elements.SectionTemplates.classList.remove("d-none");
     Elements.PageTitle.textContent = "Hosting Blueprints & Templates";
-    RenderTemplatesView();
+    if (Templates.length === 0) {
+      FetchTemplates().then(() => RenderTemplatesView());
+    } else {
+      RenderTemplatesView();
+    }
   } else if (viewName === "System") {
     Elements.NavSystem.classList.add("active");
     Elements.SectionSystem.classList.remove("d-none");
@@ -558,6 +611,8 @@ function SwitchDetailTab(tabName) {
   Elements.DetailTabSchedules.classList.toggle("d-none", tabName !== "Schedules");
   Elements.DetailTabActivity.classList.toggle("d-none", tabName !== "Activity");
   Elements.DetailTabDocker.classList.toggle("d-none", tabName !== "Docker");
+  const envTab = document.getElementById("DetailTabEnvironment");
+  if (envTab) envTab.classList.toggle("d-none", tabName !== "Environment");
 
   if (tabName === "Files") {
     FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
@@ -573,6 +628,8 @@ function SwitchDetailTab(tabName) {
     FetchServerSchedules(ActiveDetailServerId);
   } else if (tabName === "Activity") {
     FetchServerAuditLogs(ActiveDetailServerId);
+  } else if (tabName === "Environment") {
+    RenderServerEnvironmentTab();
   }
 }
 
@@ -697,10 +754,10 @@ function SetupEventListeners() {
         await FetchServers();
         OpenServerDetail(json.Data.Id);
       } else {
-        alert("Failed to clone server: " + json.Error);
+        ShowToast("Failed to clone server: " + json.Error, "error");
       }
     } catch {
-      alert("Network error cloning server");
+      ShowToast("Network error cloning server", "error");
     }
   });
 
@@ -728,10 +785,10 @@ function SetupEventListeners() {
         await FetchServers();
         RenderServerConfigTab();
       } else {
-        alert("Failed to add port: " + json.Error);
+        ShowToast("Failed to add port: " + json.Error, "error");
       }
     } catch {
-      alert("Network error adding port");
+      ShowToast("Network error adding port", "error");
     }
   });
 
@@ -797,10 +854,10 @@ function SetupEventListeners() {
         if (modal) modal.hide();
         FetchServerSchedules(ActiveDetailServerId);
       } else {
-        alert("Failed to create task: " + json.Error);
+        ShowToast("Failed to create task: " + json.Error, "error");
       }
     } catch {
-      alert("Network error creating task");
+      ShowToast("Network error creating task", "error");
     }
   });
 
@@ -903,6 +960,7 @@ async function FetchTemplates() {
       Elements.NavTemplatesBadge.textContent = String(Templates.length);
       Elements.TemplatesAvailableCount.textContent = String(Templates.length);
       PopulateDeployTemplateSelect();
+      RenderTemplatesView();
     }
   } catch {}
 }
@@ -1074,14 +1132,35 @@ function RenderServersTable() {
   Elements.StoppedContainersCount.textContent = String(stoppedCount);
 
   const filterText = Elements.SearchServersInput.value.trim().toLowerCase();
-  const filtered = filterText
-    ? Servers.filter(
-        (s) =>
-          s.Name.toLowerCase().includes(filterText) ||
-          s.TemplateId.toLowerCase().includes(filterText) ||
-          s.ContainerId.toLowerCase().includes(filterText)
-      )
-    : Servers;
+  const chipAll = document.getElementById("ChipCountAll");
+  const chipRun = document.getElementById("ChipCountRunning");
+  const chipStop = document.getElementById("ChipCountStopped");
+  if (chipAll) chipAll.textContent = String(Servers.length);
+  if (chipRun) chipRun.textContent = String(runningCount);
+  if (chipStop) chipStop.textContent = String(stoppedCount);
+
+  let filtered = Servers;
+  if (ActiveServerFilter === "running") {
+    filtered = filtered.filter((s) => s.Status === "Running");
+  } else if (ActiveServerFilter === "stopped") {
+    filtered = filtered.filter((s) => s.Status !== "Running");
+  } else if (ActiveServerFilter === "databases") {
+    filtered = filtered.filter((s) => (s.TemplateId.includes("db") || s.TemplateId.includes("cache")));
+  } else if (ActiveServerFilter === "minecraft") {
+    filtered = filtered.filter((s) => s.TemplateId.includes("minecraft"));
+  } else if (ActiveServerFilter === "bots") {
+    filtered = filtered.filter((s) => s.TemplateId.includes("bot"));
+  }
+
+  if (filterText) {
+    filtered = filtered.filter(
+      (s) =>
+        s.Name.toLowerCase().includes(filterText) ||
+        s.TemplateId.toLowerCase().includes(filterText) ||
+        s.ContainerId.toLowerCase().includes(filterText) ||
+        (s.Ports && s.Ports.some((p) => String(p.HostPort).includes(filterText) || String(p.ContainerPort).includes(filterText)))
+    );
+  }
 
   if (filtered.length === 0) {
     Elements.ServersTableBody.innerHTML = `
@@ -1225,6 +1304,20 @@ function UpdateDetailServerHeader(server) {
   Elements.DetailStatusBadge.className = `badge ${statusBadgeClass}`;
   Elements.DetailStatusBadge.textContent = server.Status;
 
+  const oomBadge = document.getElementById("DetailOomBadge");
+  if (oomBadge) {
+    oomBadge.classList.toggle("d-none", !server.OomKilled);
+  }
+
+  const dbCard = document.getElementById("DbConnectionCard");
+  if (dbCard) {
+    const isDb = (server.TemplateId.includes("mariadb") || server.TemplateId.includes("postgresql") || server.TemplateId.includes("mongo") || server.TemplateId.includes("redis"));
+    dbCard.classList.toggle("d-none", !isDb);
+    if (isDb) {
+      UpdateDbConnectionCard(server);
+    }
+  }
+
   Elements.DetailStartBtn.disabled = server.Status === "Running";
   Elements.DetailStopBtn.disabled = server.Status !== "Running";
 }
@@ -1282,6 +1375,12 @@ function ConnectWebSockets(serverId) {
         Elements.DetailRamMetric.textContent = `${memMb} MB`;
         const memPct = stats.MemoryLimitBytes ? Math.min(100, (stats.MemoryUsageBytes / stats.MemoryLimitBytes) * 100) : 20;
         Elements.DetailRamProgressBar.style.width = `${memPct}%`;
+        MetricsHistory.push({ cpu: cpuPct, mem: memPct });
+        if (MetricsHistory.length > 35) MetricsHistory.shift();
+        if (Elements.ChartCpuLabel) Elements.ChartCpuLabel.textContent = `${cpuPct.toFixed(1)}%`;
+        if (Elements.ChartRamLabel) Elements.ChartRamLabel.textContent = `${memPct.toFixed(1)}% (${memMb} MB)`;
+        DrawResourceChart();
+
       }
     } catch {}
   };
@@ -1394,6 +1493,12 @@ function RenderServerFilesTable(files) {
               `
               : ""
           }
+          
+          ${
+            !item.IsDirectory && /\.(zip|tar\.gz|tar|tgz)$/i.test(item.Name)
+              ? `<button class="btn btn-ghost py-1 px-2 text-warning" data-action="extract-file" data-path="${EscapeHtml(relativePath)}" title="Extract Archive"><i class="bi bi-file-earmark-zip"></i></button>`
+              : ""
+          }
           <button class="btn btn-ghost py-1 px-2" data-action="rename" data-path="${EscapeHtml(relativePath)}" data-name="${EscapeHtml(item.Name)}" title="Rename"><i class="bi bi-input-cursor-text"></i></button>
           <button class="btn btn-ghost-danger py-1 px-2" data-action="delete-file" data-path="${EscapeHtml(relativePath)}" title="Delete"><i class="bi bi-trash"></i></button>
         </div>
@@ -1425,6 +1530,29 @@ function RenderServerFilesTable(files) {
 
       if (action === "edit-file") {
         OpenFileEditor(ActiveDetailServerId, filePath);
+      
+      } else if (action === "extract-file") {
+        if (confirm(`Extract archive '${filePath}' to current directory?`)) {
+          btn.disabled = true;
+          try {
+            const res = await fetch(`/api/servers/${ActiveDetailServerId}/files/extract`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ArchivePath: filePath, Destination: ActiveDetailSubPath || "" }),
+            });
+            const json = await res.json();
+            if (json.Success) {
+              ShowToast("Archive extracted successfully!", "success");
+              FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+            } else {
+              ShowToast("Extraction failed: " + json.Error, "error");
+            }
+          } catch {
+            ShowToast("Network error extracting archive", "error");
+          } finally {
+            btn.disabled = false;
+          }
+        }
       } else if (action === "rename") {
         OpenRenameModal(filePath, btn.dataset.name);
       } else if (action === "delete-file") {
@@ -1479,11 +1607,11 @@ async function HandleFileEditorSave() {
         Elements.FileEditorSaveBtn.disabled = false;
       }, 1500);
     } else {
-      alert("Save failed: " + (json.Error || "Unknown error"));
+      ShowToast("Save failed: " + (json.Error || "Unknown error"), "error");
       Elements.FileEditorSaveBtn.disabled = false;
     }
   } catch {
-    alert("Network error saving file.");
+    ShowToast("Network error saving file.", "error");
     Elements.FileEditorSaveBtn.disabled = false;
   }
 }
@@ -1521,10 +1649,10 @@ async function HandleNewFileSubmit(e) {
       if (modal) modal.hide();
       FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
     } else {
-      alert("Failed to create file: " + json.Error);
+      ShowToast("Failed to create file: " + json.Error, "error");
     }
   } catch {
-    alert("Network error creating file");
+    ShowToast("Network error creating file", "error");
   }
 }
 
@@ -1551,10 +1679,10 @@ async function HandleNewFolderSubmit(e) {
       if (modal) modal.hide();
       FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
     } else {
-      alert("Failed to create directory: " + json.Error);
+      ShowToast("Failed to create directory: " + json.Error, "error");
     }
   } catch {
-    alert("Network error creating directory");
+    ShowToast("Network error creating directory", "error");
   }
 }
 
@@ -1586,10 +1714,10 @@ async function HandleRenameSubmit(e) {
       if (modal) modal.hide();
       FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
     } else {
-      alert("Failed to rename: " + json.Error);
+      ShowToast("Failed to rename: " + json.Error, "error");
     }
   } catch {
-    alert("Network error renaming item");
+    ShowToast("Network error renaming item", "error");
   }
 }
 
@@ -1615,10 +1743,10 @@ async function HandleFileUpload(e) {
       if (json.Success) {
         FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
       } else {
-        alert("Upload failed: " + json.Error);
+        ShowToast("Upload failed: " + json.Error, "error");
       }
     } catch {
-      alert("Network error uploading file");
+      ShowToast("Network error uploading file", "error");
     } finally {
       Elements.DetailFilesHiddenInput.value = "";
     }
@@ -1676,10 +1804,10 @@ function RenderServerBackupsTable(backups) {
           btn.disabled = true;
           try {
             await fetch(`/api/servers/${ActiveDetailServerId}/backups/${encodeURIComponent(fileName)}/restore`, { method: "POST" });
-            alert("Backup restored successfully!");
+            ShowToast("Backup restored successfully!", "success");
             FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
           } catch {
-            alert("Failed to restore backup");
+            ShowToast("Failed to restore backup", "error");
           }
           btn.disabled = false;
         }
@@ -1690,7 +1818,7 @@ function RenderServerBackupsTable(backups) {
             await fetch(`/api/servers/${ActiveDetailServerId}/backups/${encodeURIComponent(fileName)}`, { method: "DELETE" });
             FetchServerBackups(ActiveDetailServerId);
           } catch {
-            alert("Failed to delete backup");
+            ShowToast("Failed to delete backup", "error");
           }
         }
       }
@@ -1723,10 +1851,10 @@ async function HandleCreateBackupSubmit(e) {
       if (modal) modal.hide();
       FetchServerBackups(ActiveDetailServerId);
     } else {
-      alert("Backup creation failed: " + json.Error);
+      ShowToast("Backup creation failed: " + json.Error, "error");
     }
   } catch {
-    alert("Network error creating backup");
+    ShowToast("Network error creating backup", "error");
   } finally {
     Elements.CreateBackupSubmitBtn.disabled = false;
     Elements.CreateBackupSubmitBtn.innerHTML = `<i class="bi bi-box-arrow-down me-1"></i> Create Snapshot`;
@@ -1784,10 +1912,10 @@ function RenderServerConfigTab() {
             await FetchServers();
             RenderServerConfigTab();
           } else {
-            alert("Failed to remove port: " + json.Error);
+            ShowToast("Failed to remove port: " + json.Error, "error");
           }
         } catch {
-          alert("Network error removing port");
+          ShowToast("Network error removing port", "error");
         }
       });
     });
@@ -2030,11 +2158,11 @@ async function HandleSaveServerConfig() {
         Elements.DetailSaveConfigBtn.disabled = false;
       }, 1500);
     } else {
-      alert("Failed to update config: " + json.Error);
+      ShowToast("Failed to update config: " + json.Error, "error");
       Elements.DetailSaveConfigBtn.disabled = false;
     }
   } catch {
-    alert("Network error updating config.");
+    ShowToast("Network error updating config.", "error");
     Elements.DetailSaveConfigBtn.disabled = false;
   }
 }
@@ -2288,10 +2416,10 @@ async function HandleDeploySubmit(e) {
       await FetchServers();
       OpenServerDetail(json.Data.Id);
     } else {
-      alert("Deployment failed: " + JSON.stringify(json.Error));
+      ShowToast("Deployment failed: " + JSON.stringify(json.Error), "error");
     }
   } catch {
-    alert("Network error deploying container");
+    ShowToast("Network error deploying container", "error");
   }
 }
 
@@ -2325,5 +2453,771 @@ if (typeof window !== "undefined") {
     FetchServerBackups,
     FetchServerAuditLogs,
     FetchServerSchedules,
+    DrawResourceChart,
   };
+}
+
+function UpdateDbConnectionCard(server) {
+  const env = server.EnvironmentVariables || {};
+  const primaryPort = server.Ports && server.Ports.length > 0 ? server.Ports[0].HostPort : "PORT";
+  const host = window.location.hostname || "127.0.0.1";
+  let uri = "";
+  let maskedUri = "";
+
+  if (server.TemplateId.includes("mariadb")) {
+    const pwd = env.MYSQL_ROOT_PASSWORD || "password";
+    const db = env.MYSQL_DATABASE || "qir";
+    uri = `mysql://root:${pwd}@${host}:${primaryPort}/${db}`;
+    maskedUri = `mysql://root:••••••••@${host}:${primaryPort}/${db}`;
+  } else if (server.TemplateId.includes("postgresql")) {
+    const user = env.POSTGRES_USER || "postgres";
+    const pwd = env.POSTGRES_PASSWORD || "postgres";
+    const db = env.POSTGRES_DB || "qir";
+    uri = `postgresql://${user}:${pwd}@${host}:${primaryPort}/${db}`;
+    maskedUri = `postgresql://${user}:••••••••@${host}:${primaryPort}/${db}`;
+  } else if (server.TemplateId.includes("mongo")) {
+    const user = env.MONGO_INITDB_ROOT_USERNAME || "admin";
+    const pwd = env.MONGO_INITDB_ROOT_PASSWORD || "password";
+    uri = `mongodb://${user}:${pwd}@${host}:${primaryPort}`;
+    maskedUri = `mongodb://${user}:••••••••@${host}:${primaryPort}`;
+  } else if (server.TemplateId.includes("redis")) {
+    const pwd = env.REDIS_PASSWORD || "";
+    uri = pwd ? `redis://:${pwd}@${host}:${primaryPort}` : `redis://${host}:${primaryPort}`;
+    maskedUri = pwd ? `redis://:••••••••@${host}:${primaryPort}` : `redis://${host}:${primaryPort}`;
+  }
+
+  const uriText = document.getElementById("DbConnectionUriText");
+  if (uriText) {
+    uriText.textContent = DbPasswordMasked ? maskedUri : uri;
+    uriText.dataset.fullUri = uri;
+  }
+}
+
+function RenderServerEnvironmentTab() {
+  const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+  if (!server) return;
+
+  const tbody = document.getElementById("DetailEnvTableBody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const env = server.EnvironmentVariables || {};
+  const entries = Object.entries(env);
+
+  if (entries.length === 0) {
+    tbody.innerHTML = `
+      <tr id="DetailEnvEmptyRow">
+        <td colspan="3" class="text-center py-4 text-body-secondary">
+          No custom environment variables configured. Click "Add Variable" to create one.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  for (const [key, value] of entries) {
+    AddEnvRow(key, value);
+  }
+}
+
+function AddEnvRow(key = "", value = "") {
+  const tbody = document.getElementById("DetailEnvTableBody");
+  const emptyRow = document.getElementById("DetailEnvEmptyRow");
+  if (emptyRow) emptyRow.remove();
+
+  const tr = document.createElement("tr");
+  tr.className = "EnvTableRow";
+  tr.innerHTML = `
+    <td>
+      <input type="text" class="form-control form-control-sm font-monospace EnvKeyInput" value="${escapeHtml(key)}" placeholder="KEY_NAME">
+    </td>
+    <td>
+      <div class="input-group input-group-sm">
+        <input type="${EnvValuesMasked ? "password" : "text"}" class="form-control font-monospace EnvValueInput" value="${escapeHtml(value)}" placeholder="Value">
+        <button class="btn btn-outline-secondary EnvRowToggleBtn" type="button" title="Toggle visibility">
+          <i class="bi ${EnvValuesMasked ? "bi-eye" : "bi-eye-slash"}"></i>
+        </button>
+      </div>
+    </td>
+    <td class="text-end">
+      <button class="btn btn-xs btn-outline-danger EnvRowDeleteBtn" type="button" title="Remove variable">
+        <i class="bi bi-trash"></i>
+      </button>
+    </td>
+  `;
+
+  tr.querySelector(".EnvRowToggleBtn").addEventListener("click", () => {
+    const input = tr.querySelector(".EnvValueInput");
+    const icon = tr.querySelector(".EnvRowToggleBtn i");
+    if (input.type === "password") {
+      input.type = "text";
+      icon.className = "bi bi-eye-slash";
+    } else {
+      input.type = "password";
+      icon.className = "bi bi-eye";
+    }
+  });
+
+  tr.querySelector(".EnvRowDeleteBtn").addEventListener("click", () => {
+    tr.remove();
+  });
+
+  tbody.appendChild(tr);
+}
+
+function SetupEnvironmentTabListeners() {
+  const addBtn = document.getElementById("EnvAddRowBtn");
+  if (addBtn) {
+    addBtn.addEventListener("click", () => AddEnvRow());
+  }
+
+  const maskBtn = document.getElementById("EnvToggleMaskBtn");
+  if (maskBtn) {
+    maskBtn.addEventListener("click", () => {
+      EnvValuesMasked = !EnvValuesMasked;
+      maskBtn.innerHTML = `<i class="bi ${EnvValuesMasked ? "bi-eye" : "bi-eye-slash"}"></i> ${EnvValuesMasked ? "Show Values" : "Hide Values"}`;
+      const inputs = document.querySelectorAll(".EnvValueInput");
+      inputs.forEach((input) => {
+        input.type = EnvValuesMasked ? "password" : "text";
+      });
+      const icons = document.querySelectorAll(".EnvRowToggleBtn i");
+      icons.forEach((icon) => {
+        icon.className = `bi ${EnvValuesMasked ? "bi-eye" : "bi-eye-slash"}`;
+      });
+    });
+  }
+
+  const saveBtn = document.getElementById("SaveEnvVarsBtn");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      if (!ActiveDetailServerId) return;
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Saving...`;
+
+      const rows = document.querySelectorAll(".EnvTableRow");
+      const envObj = {};
+      rows.forEach((row) => {
+        const key = row.querySelector(".EnvKeyInput").value.trim();
+        const val = row.querySelector(".EnvValueInput").value;
+        if (key) {
+          envObj[key] = val;
+        }
+      });
+
+      try {
+        const res = await fetch(`/api/servers/${ActiveDetailServerId}/env`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ EnvironmentVariables: envObj }),
+        });
+        const json = await res.json();
+        if (json.Success) {
+          ShowToast("Environment variables saved and container updated!", "success");
+          await FetchSingleServer(ActiveDetailServerId);
+        } else {
+          ShowToast(json.Error || "Failed to update environment", "error");
+        }
+      } catch {
+        ShowToast("Network error updating environment", "error");
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = `<i class="bi bi-check2 me-1"></i> Save & Apply Variables`;
+      }
+    });
+  }
+
+  const dbMaskBtn = document.getElementById("DbToggleMaskBtn");
+  if (dbMaskBtn) {
+    dbMaskBtn.addEventListener("click", () => {
+      DbPasswordMasked = !DbPasswordMasked;
+      dbMaskBtn.innerHTML = `<i class="bi ${DbPasswordMasked ? "bi-eye" : "bi-eye-slash"}"></i> ${DbPasswordMasked ? "Show" : "Hide"}`;
+      const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+      if (server) UpdateDbConnectionCard(server);
+    });
+  }
+
+  const dbCopyBtn = document.getElementById("DbCopyUriBtn");
+  if (dbCopyBtn) {
+    dbCopyBtn.addEventListener("click", () => {
+      const uriText = document.getElementById("DbConnectionUriText");
+      if (uriText?.dataset?.fullUri) {
+        navigator.clipboard.writeText(uriText.dataset.fullUri);
+        ShowToast("Database connection URI copied to clipboard!", "success");
+      }
+    });
+  }
+}
+
+function SetupFilterChips() {
+  const chips = document.querySelectorAll(".FilterChip");
+  chips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      chips.forEach((c) => {
+        c.classList.remove("active", "btn-primary");
+        c.classList.add("btn-outline-secondary");
+      });
+      chip.classList.add("active", "btn-primary");
+      chip.classList.remove("btn-outline-secondary");
+      ActiveServerFilter = chip.dataset.filter || "all";
+      RenderServersTable();
+    });
+  });
+}
+
+function SetupMobileSidebar() {
+  const toggleBtn = document.getElementById("MobileSidebarToggle");
+  const sidebar = document.querySelector(".Sidebar");
+  if (toggleBtn && sidebar) {
+    toggleBtn.addEventListener("click", () => {
+      sidebar.classList.toggle("MobileOpen");
+    });
+    document.addEventListener("click", (e) => {
+      if (sidebar.classList.contains("MobileOpen") && !sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
+        sidebar.classList.remove("MobileOpen");
+      }
+    });
+  }
+}
+
+function SetupCommandPalette() {
+  const modalEl = document.getElementById("CommandPaletteModal");
+  if (!modalEl) return;
+  const modal = new bootstrap.Modal(modalEl);
+  const input = document.getElementById("CommandPaletteInput");
+  const list = document.getElementById("CommandPaletteList");
+  let selectedIndex = 0;
+  let currentResults = [];
+
+  const openPalette = () => {
+    modal.show();
+    setTimeout(() => {
+      input.value = "";
+      RenderPaletteResults("");
+      input.focus();
+    }, 150);
+  };
+
+  const openBtn = document.getElementById("OpenCommandPaletteBtn");
+  if (openBtn) openBtn.addEventListener("click", openPalette);
+
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      openPalette();
+    } else if (e.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) {
+      e.preventDefault();
+      openPalette();
+    }
+  });
+
+  input.addEventListener("input", () => {
+    RenderPaletteResults(input.value.trim().toLowerCase());
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      selectedIndex = (selectedIndex + 1) % Math.max(1, currentResults.length);
+      HighlightPaletteItem();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      selectedIndex = (selectedIndex - 1 + currentResults.length) % Math.max(1, currentResults.length);
+      HighlightPaletteItem();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (currentResults[selectedIndex]) {
+        currentResults[selectedIndex].action();
+        modal.hide();
+      }
+    }
+  });
+
+  function RenderPaletteResults(query) {
+    list.innerHTML = "";
+    selectedIndex = 0;
+    currentResults = [];
+
+    const actions = [
+      {
+        title: "Deploy Container Instance",
+        subtitle: "Launch a new Docker container using blueprints",
+        icon: "bi-plus-circle text-primary",
+        action: () => { OpenDeployModal(); },
+      },
+      {
+        title: "Start All Stopped Containers",
+        subtitle: "Bulk startup operation for all instances",
+        icon: "bi-play-circle text-success",
+        action: () => { Elements.BulkStartBtn?.click(); },
+      },
+      {
+        title: "Stop All Running Containers",
+        subtitle: "Graceful bulk shutdown across all workloads",
+        icon: "bi-stop-circle text-warning",
+        action: () => { Elements.BulkStopBtn?.click(); },
+      },
+      {
+        title: "Security & Active Sessions",
+        subtitle: "Configure 2FA Authenticator and review active logins",
+        icon: "bi-shield-check text-info",
+        action: () => { OpenSecurityModal(); },
+      },
+      {
+        title: "System & Docker Diagnostics",
+        subtitle: "View host CPU, memory, platform, and Docker socket info",
+        icon: "bi-cpu text-secondary",
+        action: () => { SwitchView("System"); },
+      },
+      {
+        title: "Hosting Blueprints",
+        subtitle: "Explore pre-configured templates (Databases, Minecraft, Bots)",
+        icon: "bi-grid-1x2 text-info",
+        action: () => { SwitchView("Templates"); },
+      },
+    ];
+
+    if (CurrentUser?.Role === "admin") {
+      actions.push({
+        title: "Manage Users",
+        subtitle: "Create, view, and delete system users",
+        icon: "bi-people text-primary",
+        action: () => { SwitchView("Users"); },
+      });
+    }
+
+    for (const server of Servers) {
+      actions.push({
+        title: `Jump to: ${server.Name}`,
+        subtitle: `${server.Status} | ${server.TemplateId} | ${server.Ports?.map((p) => p.HostPort).join(", ") || "No ports"}`,
+        icon: "bi-server text-light",
+        action: () => { OpenServerDetail(server.Id); },
+      });
+    }
+
+    const filtered = query
+      ? actions.filter((a) => a.title.toLowerCase().includes(query) || a.subtitle.toLowerCase().includes(query))
+      : actions;
+
+    currentResults = filtered;
+
+    if (filtered.length === 0) {
+      list.innerHTML = `<div class="p-3 text-center text-body-secondary small">No commands or instances match "${escapeHtml(query)}"</div>`;
+      return;
+    }
+
+    filtered.forEach((item, idx) => {
+      const el = document.createElement("div");
+      el.className = `CommandPaletteItem d-flex align-items-center justify-content-between ${idx === 0 ? "selected" : ""}`;
+      el.innerHTML = `
+        <div class="d-flex align-items-center gap-2 overflow-hidden">
+          <i class="bi ${item.icon} fs-5"></i>
+          <div>
+            <div class="small fw-medium text-truncate">${item.title}</div>
+            <div class="text-body-tertiary text-truncate" style="font-size:0.75rem;">${item.subtitle}</div>
+          </div>
+        </div>
+        <i class="bi bi-arrow-return-left text-body-secondary small"></i>
+      `;
+      el.addEventListener("click", () => {
+        item.action();
+        modal.hide();
+      });
+      el.addEventListener("mouseenter", () => {
+        selectedIndex = idx;
+        HighlightPaletteItem();
+      });
+      list.appendChild(el);
+    });
+  }
+
+  function HighlightPaletteItem() {
+    const items = list.querySelectorAll(".CommandPaletteItem");
+    items.forEach((item, idx) => {
+      item.classList.toggle("selected", idx === selectedIndex);
+      if (idx === selectedIndex) {
+        item.scrollIntoView({ block: "nearest" });
+      }
+    });
+  }
+}
+
+function SetupSecurityModal() {
+  const modalEl = document.getElementById("SecuritySessionsModal");
+  if (!modalEl) return;
+  const modal = new bootstrap.Modal(modalEl);
+
+  const openBtn = document.getElementById("OpenSecurityModalBtn");
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      OpenSecurityModal();
+    });
+  }
+
+  window.OpenSecurityModal = async () => {
+    modal.show();
+    UpdateTotpStatusUI();
+    await LoadActiveSessions();
+  };
+
+  const startSetupBtn = document.getElementById("StartTotpSetupBtn");
+  const setupContainer = document.getElementById("TotpSetupContainer");
+  const disableBtn = document.getElementById("DisableTotpBtn");
+  const confirmTotpBtn = document.getElementById("ConfirmTotpBtn");
+  const verifyInput = document.getElementById("TotpVerifyInput");
+  const errorAlert = document.getElementById("TotpErrorAlert");
+
+  if (startSetupBtn) {
+    startSetupBtn.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/auth/2fa/setup", { method: "POST" });
+        const json = await res.json();
+        if (json.Success) {
+          setupContainer.classList.remove("d-none");
+          document.getElementById("TotpSecretManualInput").value = json.Data.Secret;
+          RenderTotpQrCode(json.Data.Uri);
+        } else {
+          ShowToast(json.Error || "Failed to setup 2FA", "error");
+        }
+      } catch {
+        ShowToast("Network error initiating 2FA setup", "error");
+      }
+    });
+  }
+
+  if (confirmTotpBtn) {
+    confirmTotpBtn.addEventListener("click", async () => {
+      const code = verifyInput.value.trim();
+      if (code.length !== 6) {
+        errorAlert.textContent = "Please enter a valid 6-digit verification code.";
+        errorAlert.classList.remove("d-none");
+        return;
+      }
+      try {
+        const res = await fetch("/api/auth/2fa/enable", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Token: code }),
+        });
+        const json = await res.json();
+        if (json.Success) {
+          ShowToast("Two-factor authentication successfully enabled!", "success");
+          if (CurrentUser) CurrentUser.TotpEnabled = true;
+          setupContainer.classList.add("d-none");
+          UpdateTotpStatusUI();
+        } else {
+          errorAlert.textContent = json.Error || "Invalid code. Please try again.";
+          errorAlert.classList.remove("d-none");
+        }
+      } catch {
+        errorAlert.textContent = "Network error validating 2FA code.";
+        errorAlert.classList.remove("d-none");
+      }
+    });
+  }
+
+  if (disableBtn) {
+    disableBtn.addEventListener("click", async () => {
+      const password = prompt("Enter your master password to disable 2FA:");
+      if (!password) return;
+      try {
+        const res = await fetch("/api/auth/2fa/disable", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Password: password }),
+        });
+        const json = await res.json();
+        if (json.Success) {
+          ShowToast("Two-factor authentication disabled", "info");
+          if (CurrentUser) CurrentUser.TotpEnabled = false;
+          UpdateTotpStatusUI();
+        } else {
+          ShowToast(json.Error || "Failed to disable 2FA", "error");
+        }
+      } catch {
+        ShowToast("Network error disabling 2FA", "error");
+      }
+    });
+  }
+
+  const copySecretBtn = document.getElementById("CopyTotpSecretBtn");
+  if (copySecretBtn) {
+    copySecretBtn.addEventListener("click", () => {
+      const val = document.getElementById("TotpSecretManualInput").value;
+      if (val) {
+        navigator.clipboard.writeText(val);
+        ShowToast("2FA Secret copied to clipboard!", "success");
+      }
+    });
+  }
+
+  const revokeOtherBtn = document.getElementById("RevokeOtherSessionsBtn");
+  if (revokeOtherBtn) {
+    revokeOtherBtn.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/auth/sessions", { method: "DELETE" });
+        const json = await res.json();
+        if (json.Success) {
+          ShowToast("All other sessions revoked", "success");
+          await LoadActiveSessions();
+        }
+      } catch {
+        ShowToast("Network error revoking sessions", "error");
+      }
+    });
+  }
+}
+
+function UpdateTotpStatusUI() {
+  const badge = document.getElementById("TotpStatusBadge");
+  const startBtn = document.getElementById("StartTotpSetupBtn");
+  const disableBtn = document.getElementById("DisableTotpBtn");
+  const isEnabled = Boolean(CurrentUser?.TotpEnabled);
+
+  if (badge) {
+    badge.className = `badge ${isEnabled ? "text-bg-success" : "text-bg-secondary"}`;
+    badge.textContent = isEnabled ? "Active & Protected" : "Disabled";
+  }
+  if (startBtn) startBtn.classList.toggle("d-none", isEnabled);
+  if (disableBtn) disableBtn.classList.toggle("d-none", !isEnabled);
+}
+
+function RenderTotpQrCode(uri) {
+  const container = document.getElementById("TotpQrCodeContainer");
+  if (!container) return;
+  const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + encodeURIComponent(uri);
+  container.innerHTML = `<img src="${qrUrl}" alt="2FA QR Code" width="160" height="160" class="img-fluid rounded">`;
+}
+
+async function LoadActiveSessions() {
+  const tbody = document.getElementById("ActiveSessionsTableBody");
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="4" class="text-center py-3 text-body-secondary">Loading active sessions...</td></tr>`;
+
+  try {
+    const res = await fetch("/api/auth/sessions");
+    const json = await res.json();
+    if (json.Success && Array.isArray(json.Data)) {
+      if (json.Data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-3 text-body-secondary">No active sessions found.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = "";
+      for (const s of json.Data) {
+        const tr = document.createElement("tr");
+        const isCurrent = s.IsCurrent;
+        tr.innerHTML = `
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi ${s.UserAgent.includes("Mobile") ? "bi-phone" : "bi-laptop"} text-body-secondary fs-5"></i>
+              <div>
+                <div class="small fw-medium">${escapeHtml(s.UserAgent.slice(0, 40))}</div>
+                ${isCurrent ? '<span class="badge text-bg-primary" style="font-size:0.65rem;">This Device</span>' : ""}
+              </div>
+            </div>
+          </td>
+          <td class="font-monospace small text-body-secondary">${escapeHtml(s.IpAddress)}</td>
+          <td class="small text-body-secondary">${new Date(s.CreatedAt).toLocaleString()}</td>
+          <td class="text-end pe-2">
+            ${isCurrent ? '<span class="text-body-tertiary small">Active</span>' : `<button class="btn btn-xs btn-outline-danger RevokeSessionBtn" data-id="${s.Id}">Revoke</button>`}
+          </td>
+        `;
+        const revokeBtn = tr.querySelector(".RevokeSessionBtn");
+        if (revokeBtn) {
+          revokeBtn.addEventListener("click", async () => {
+            try {
+              const delRes = await fetch(`/api/auth/sessions/${s.Id}`, { method: "DELETE" });
+              const delJson = await delRes.json();
+              if (delJson.Success) {
+                ShowToast("Session revoked", "info");
+                await LoadActiveSessions();
+              }
+            } catch {
+              ShowToast("Network error revoking session", "error");
+            }
+          });
+        }
+        tbody.appendChild(tr);
+      }
+    }
+  } catch {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-3 text-danger">Failed to load active sessions.</td></tr>`;
+  }
+}
+
+
+let MetricsHistory = [];
+
+function DrawResourceChart() {
+  const canvas = Elements.ResourceMetricsCanvas;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const width = canvas.width = canvas.parentElement ? canvas.parentElement.clientWidth - 32 : 600;
+  const height = canvas.height = 70;
+
+  ctx.clearRect(0, 0, width, height);
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, height * 0.25);
+  ctx.lineTo(width, height * 0.25);
+  ctx.moveTo(0, height * 0.5);
+  ctx.lineTo(width, height * 0.5);
+  ctx.moveTo(0, height * 0.75);
+  ctx.lineTo(width, height * 0.75);
+  ctx.stroke();
+
+  if (MetricsHistory.length < 2) return;
+
+  const step = width / (Math.max(MetricsHistory.length - 1, 1));
+
+  ctx.beginPath();
+  for (let i = 0; i < MetricsHistory.length; i++) {
+    const x = i * step;
+    const y = height - (MetricsHistory[i].mem / 100) * (height - 8) - 4;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = "#10b981";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  const accentColor = getComputedStyle(document.documentElement).getPropertyValue("--qir-accent").trim() || "#6366f1";
+  ctx.beginPath();
+  for (let i = 0; i < MetricsHistory.length; i++) {
+    const x = i * step;
+    const y = height - (MetricsHistory[i].cpu / 100) * (height - 8) - 4;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = accentColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+
+function SetupThemeCustomizer() {
+  const saved = localStorage.getItem("qir_theme") || "indigo";
+  document.documentElement.setAttribute("data-theme", saved);
+
+  document.querySelectorAll(".ThemeSelectBtn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const theme = btn.dataset.theme;
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem("qir_theme", theme);
+      DrawResourceChart();
+      ShowToast("Theme updated to " + theme, "info");
+    });
+  });
+}
+
+function SetupExtraServerFeatures() {
+  if (Elements.DetailFilesCompressBtn) {
+    Elements.DetailFilesCompressBtn.addEventListener("click", async () => {
+      const archiveName = prompt("Enter archive name (e.g. backup.tar.gz):", "archive.tar.gz");
+      if (!archiveName) return;
+      try {
+        const res = await fetch(`/api/servers/${ActiveDetailServerId}/files/compress`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ArchiveName: archiveName, Paths: [] }),
+        });
+        const json = await res.json();
+        if (json.Success) {
+          ShowToast("Archive created: " + json.Data.ArchiveName, "success");
+          FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+        } else {
+          ShowToast("Compression failed: " + json.Error, "error");
+        }
+      } catch {
+        ShowToast("Network error creating archive", "error");
+      }
+    });
+  }
+
+  if (Elements.EnvImportDotEnvBtn) {
+    Elements.EnvImportDotEnvBtn.addEventListener("click", () => {
+      if (Elements.BulkDotEnvTextarea) Elements.BulkDotEnvTextarea.value = "";
+      const modal = GetBootstrapModal(Elements.BulkDotEnvModal);
+      if (modal) modal.show();
+    });
+  }
+
+  if (Elements.BulkDotEnvApplyBtn) {
+    Elements.BulkDotEnvApplyBtn.addEventListener("click", () => {
+      const text = Elements.BulkDotEnvTextarea?.value || "";
+      const lines = text.split(/\r?\n/);
+      let count = 0;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eq = trimmed.indexOf("=");
+        if (eq <= 0) continue;
+        const key = trimmed.slice(0, eq).trim();
+        let val = trimmed.slice(eq + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        AddEnvRow(key, val);
+        count++;
+      }
+      const modal = GetBootstrapModal(Elements.BulkDotEnvModal);
+      if (modal) modal.hide();
+      ShowToast(`Imported ${count} environment variables`, "success");
+    });
+  }
+
+  if (Elements.DetailSaveAlertWebhookBtn) {
+    Elements.DetailSaveAlertWebhookBtn.addEventListener("click", async () => {
+      const webhookUrl = Elements.DetailAlertWebhookInput?.value.trim() || "";
+      try {
+        const res = await fetch(`/api/servers/${ActiveDetailServerId}/alert-webhook`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ AlertWebhookUrl: webhookUrl }),
+        });
+        const json = await res.json();
+        if (json.Success) {
+          ShowToast("Alert webhook updated successfully", "success");
+        } else {
+          ShowToast("Failed to update webhook: " + json.Error, "error");
+        }
+      } catch {
+        ShowToast("Network error saving alert webhook", "error");
+      }
+    });
+  }
+
+  if (Elements.DetailTestAlertWebhookBtn) {
+    Elements.DetailTestAlertWebhookBtn.addEventListener("click", async () => {
+      try {
+        const res = await fetch(`/api/servers/${ActiveDetailServerId}/test-alert-webhook`, {
+          method: "POST",
+        });
+        const json = await res.json();
+        if (json.Success) {
+          ShowToast("Alert notification dispatched successfully!", "info");
+        } else {
+          ShowToast("Failed to dispatch test alert: " + json.Error, "error");
+        }
+      } catch {
+        ShowToast("Network error testing alert webhook", "error");
+      }
+    });
+  }
+
+  if (Elements.DetailExportAuditCsvBtn) {
+    Elements.DetailExportAuditCsvBtn.addEventListener("click", () => {
+      window.open("/api/system/audit/export?Format=csv", "_blank");
+    });
+  }
+
+  if (Elements.DetailExportAuditJsonBtn) {
+    Elements.DetailExportAuditJsonBtn.addEventListener("click", () => {
+      window.open("/api/system/audit/export?Format=json", "_blank");
+    });
+  }
 }

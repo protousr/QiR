@@ -84,13 +84,19 @@ export class ContainerManager {
   public async UpdateContainerLimits(
     containerId: string,
     memoryBytes?: number,
-    nanoCpus?: number
+    nanoCpus?: number,
+    restartPolicy?: string
   ): Promise<void> {
     const container = this.Client.getContainer(containerId);
-    await container.update({
-      Memory: memoryBytes,
-      NanoCPUs: nanoCpus,
-    });
+    const updateOptions: {
+      Memory?: number;
+      NanoCPUs?: number;
+      RestartPolicy?: { Name: string };
+    } = {};
+    if (typeof memoryBytes === "number") updateOptions.Memory = memoryBytes;
+    if (typeof nanoCpus === "number") updateOptions.NanoCPUs = nanoCpus;
+    if (restartPolicy) updateOptions.RestartPolicy = { Name: restartPolicy };
+    await container.update(updateOptions);
   }
 
   public async RecreateContainerWithNewPorts(
@@ -128,6 +134,43 @@ export class ContainerManager {
         NanoCpus: inspect.HostConfig.NanoCpus,
         RestartPolicy: inspect.HostConfig.RestartPolicy,
       },
+      AttachStdin: inspect.Config.AttachStdin,
+      AttachStdout: inspect.Config.AttachStdout,
+      AttachStderr: inspect.Config.AttachStderr,
+      OpenStdin: inspect.Config.OpenStdin,
+      StdinOnce: inspect.Config.StdinOnce,
+      Tty: inspect.Config.Tty,
+    });
+
+    if (wasRunning) {
+      await newContainer.start();
+    }
+
+    return newContainer.id;
+  }
+
+  public async RecreateContainerWithNewEnv(
+    oldContainerId: string,
+    newEnv: Record<string, string>
+  ): Promise<string> {
+    const inspect = await this.InspectContainer(oldContainerId);
+    const wasRunning = Boolean(inspect.State.Running);
+    const containerName = inspect.Name.replace(/^\//, "");
+
+    if (wasRunning) {
+      await this.StopContainer(oldContainerId, 5);
+    }
+    await this.RemoveContainer(oldContainerId, true);
+
+    const envArray: string[] = Object.entries(newEnv).map(([k, v]) => `${k}=${v}`);
+
+    const newContainer = await this.Client.createContainer({
+      name: containerName,
+      Image: inspect.Config.Image,
+      Cmd: inspect.Config.Cmd,
+      Env: envArray,
+      ExposedPorts: inspect.Config.ExposedPorts,
+      HostConfig: inspect.HostConfig,
       AttachStdin: inspect.Config.AttachStdin,
       AttachStdout: inspect.Config.AttachStdout,
       AttachStderr: inspect.Config.AttachStderr,

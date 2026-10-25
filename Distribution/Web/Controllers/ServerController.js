@@ -209,6 +209,30 @@ export class ServerController {
             });
         }
     };
+    UpdateEnvironmentVariables = async (request, reply) => {
+        try {
+            const updated = await this.ServerService.UpdateEnvironmentVariables(request.params.Id, request.body.EnvironmentVariables);
+            reply.send({ Success: true, Data: updated });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to update environment variables",
+            });
+        }
+    };
+    UpdateRestartPolicy = async (request, reply) => {
+        try {
+            const updated = await this.ServerService.UpdateRestartPolicy(request.params.Id, request.body.RestartPolicy);
+            reply.send({ Success: true, Data: updated });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to update restart policy",
+            });
+        }
+    };
     DownloadVolumeFile = async (request, reply) => {
         try {
             const buffer = await this.ServerService.GetVolumeService().GetFileBuffer(request.params.Id, request.query.FilePath);
@@ -254,6 +278,54 @@ export class ServerController {
             reply.status(500).send({
                 Success: false,
                 Error: err instanceof Error ? err.message : "Failed to rename",
+            });
+        }
+    };
+    ExtractVolumeArchive = async (request, reply) => {
+        try {
+            await this.ServerService.GetVolumeService().ExtractArchive(request.params.Id, request.body.ArchivePath, request.body.Destination || "");
+            reply.send({ Success: true, Message: "Archive extracted successfully" });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to extract archive",
+            });
+        }
+    };
+    CompressVolumeFiles = async (request, reply) => {
+        try {
+            const archiveName = await this.ServerService.GetVolumeService().CompressFiles(request.params.Id, request.body.Paths || [], request.body.ArchiveName || "archive.tar.gz");
+            reply.send({ Success: true, Data: { ArchiveName: archiveName } });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to compress files",
+            });
+        }
+    };
+    UpdateAlertWebhook = async (request, reply) => {
+        try {
+            const updated = await this.ServerService.UpdateAlertWebhook(request.params.Id, request.body.AlertWebhookUrl);
+            reply.send({ Success: true, Data: updated });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to update alert webhook",
+            });
+        }
+    };
+    TestAlertWebhook = async (request, reply) => {
+        try {
+            await this.ServerService.TestAlertWebhook(request.params.Id);
+            reply.send({ Success: true, Message: "Alert notification dispatched successfully" });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to dispatch alert",
             });
         }
     };

@@ -37,9 +37,14 @@ export interface IServerInstance {
   EnvironmentVariables: Record<string, string>;
   Limits: IResourceLimits;
   AutoRestart: boolean;
+  RestartPolicy?: "unless-stopped" | "always" | "on-failure" | "no";
+  OomKilled?: boolean;
   OwnerId?: string;
   OwnerUsername?: string;
   WebhookToken?: string;
+  AlertWebhookUrl?: string;
+  CrashCount?: number;
+  LastCrashTime?: string;
 }
 
 export interface ICreateServerInput {
@@ -49,9 +54,11 @@ export interface ICreateServerInput {
   EnvironmentVariables?: Record<string, string>;
   Limits?: IResourceLimits;
   AutoRestart?: boolean;
+  RestartPolicy?: "unless-stopped" | "always" | "on-failure" | "no";
   OwnerId?: string;
   OwnerUsername?: string;
   WebhookToken?: string;
+  AlertWebhookUrl?: string;
 }
 
 export interface IServerStats {

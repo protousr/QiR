@@ -33,6 +33,7 @@ export class AuthService {
             PasswordSalt: Salt,
             Role: "admin",
             CreatedAt: new Date().toISOString(),
+            TotpEnabled: 0,
         };
         this.DatabaseManager.CreateUser(user);
         this.DatabaseManager.LogAudit({
@@ -60,6 +61,7 @@ export class AuthService {
             PasswordSalt: Salt,
             Role: role,
             CreatedAt: new Date().toISOString(),
+            TotpEnabled: 0,
         };
         this.DatabaseManager.CreateUser(user);
         this.DatabaseManager.LogAudit({
@@ -88,7 +90,55 @@ export class AuthService {
             Details: `User ${user.Username} deleted.`,
         });
     }
-    async Login(username, password, ipAddress, userAgent) {
+    SetupTotp(userId) {
+        const user = this.DatabaseManager.FindUserById(userId);
+        if (!user) {
+            throw new Error("User not found");
+        }
+        const secret = this.CryptoService.GenerateTotpSecret();
+        const uri = this.CryptoService.GenerateTotpUri(user.Username, secret);
+        this.DatabaseManager.UpdateUserTotp(userId, secret, false);
+        return { Secret: secret, Uri: uri };
+    }
+    VerifyAndEnableTotp(userId, token) {
+        const user = this.DatabaseManager.FindUserById(userId);
+        if (!user || !user.TotpSecret) {
+            return false;
+        }
+        const isValid = this.CryptoService.VerifyTotp(user.TotpSecret, token.trim());
+        if (!isValid) {
+            return false;
+        }
+        this.DatabaseManager.UpdateUserTotp(userId, user.TotpSecret, true);
+        this.DatabaseManager.LogAudit({
+            Id: crypto.randomUUID(),
+            Timestamp: new Date().toISOString(),
+            Action: "2FA_ENABLED",
+            IpAddress: "system",
+            Details: `User ${user.Username} enabled 2FA.`,
+        });
+        return true;
+    }
+    async DisableTotp(userId, password) {
+        const user = this.DatabaseManager.FindUserById(userId);
+        if (!user) {
+            return false;
+        }
+        const isValid = await this.CryptoService.VerifyPassword(password, user.PasswordHash, user.PasswordSalt);
+        if (!isValid) {
+            return false;
+        }
+        this.DatabaseManager.UpdateUserTotp(userId, null, false);
+        this.DatabaseManager.LogAudit({
+            Id: crypto.randomUUID(),
+            Timestamp: new Date().toISOString(),
+            Action: "2FA_DISABLED",
+            IpAddress: "system",
+            Details: `User ${user.Username} disabled 2FA.`,
+        });
+        return true;
+    }
+    async Login(username, password, ipAddress, userAgent, totpCode) {
         this.DatabaseManager.CleanExpiredSessions();
         const user = this.DatabaseManager.FindUserByUsername(username.trim());
         if (!user) {
@@ -111,6 +161,22 @@ export class AuthService {
                 Details: `Invalid password for: ${username}`,
             });
             return null;
+        }
+        if (user.TotpEnabled && user.TotpSecret) {
+            if (!totpCode) {
+                return { RequiresTotp: true };
+            }
+            const isTotpValid = this.CryptoService.VerifyTotp(user.TotpSecret, totpCode.trim());
+            if (!isTotpValid) {
+                this.DatabaseManager.LogAudit({
+                    Id: crypto.randomUUID(),
+                    Timestamp: new Date().toISOString(),
+                    Action: "LOGIN_FAILED_2FA",
+                    IpAddress: ipAddress,
+                    Details: `Invalid 2FA code for: ${username}`,
+                });
+                return null;
+            }
         }
         const { RawToken, HashedToken } = this.CryptoService.GenerateSessionToken();
         const expiresDate = new Date();
@@ -154,6 +220,25 @@ export class AuthService {
         }
         const user = this.DatabaseManager.FindUserById(session.UserId);
         return user || null;
+    }
+    GetActiveSessions(userId, currentRawToken) {
+        const currentHash = currentRawToken ? this.CryptoService.HashToken(currentRawToken) : "";
+        const sessions = this.DatabaseManager.GetUserSessions(userId);
+        return sessions.map((s) => ({
+            Id: s.Id,
+            IpAddress: s.IpAddress,
+            UserAgent: s.UserAgent,
+            CreatedAt: s.CreatedAt,
+            ExpiresAt: s.ExpiresAt,
+            IsCurrent: s.TokenHash === currentHash,
+        }));
+    }
+    RevokeSession(sessionId) {
+        this.DatabaseManager.DeleteSessionById(sessionId);
+    }
+    RevokeOtherSessions(userId, currentRawToken) {
+        const currentHash = this.CryptoService.HashToken(currentRawToken);
+        this.DatabaseManager.DeleteOtherUserSessions(userId, currentHash);
     }
     Logout(rawToken) {
         if (!rawToken) {

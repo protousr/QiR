@@ -4,7 +4,7 @@ export class MariaDbTemplate extends BaseTemplate {
     Name = "MariaDB / MySQL Database";
     Description = "Fast and scalable relational MySQL/MariaDB database with persistent storage and custom databases.";
     Category = "Database";
-    DefaultImage = "mariadb:11-alpine";
+    DefaultImage = "mariadb:lts";
     VolumeMountPath = "/var/lib/mysql";
     DefaultPorts = [
         {

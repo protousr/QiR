@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="Style.css">
 </head>
 <body>
+  <div id="ToastContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 9999; pointer-events: none;"></div>
   <div id="AuthOverlay" class="AuthBackdrop hidden">
     <div class="AuthCard card shadow-lg">
       <div class="card-body p-4">
@@ -31,9 +32,17 @@
             <label for="LoginUsername" class="form-label small fw-medium">Username</label>
             <input type="text" class="form-control" id="LoginUsername" required autocomplete="username" placeholder="admin">
           </div>
-          <div class="mb-4">
+          <div class="mb-3" id="LoginPasswordGroup">
             <label for="LoginPassword" class="form-label small fw-medium">Password</label>
             <input type="password" class="form-control" id="LoginPassword" required autocomplete="current-password" placeholder="••••••••">
+          </div>
+          <div class="mb-4 d-none" id="LoginTotpGroup">
+            <label for="LoginTotpCode" class="form-label small fw-medium text-warning d-flex align-items-center justify-content-between">
+              <span><i class="bi bi-shield-lock-fill me-1"></i> Two-Factor Authenticator Code</span>
+              <span class="badge text-bg-warning">Required</span>
+            </label>
+            <input type="text" class="form-control font-monospace text-center fs-5 tracking-widest" id="LoginTotpCode" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+            <div class="form-text small text-body-secondary text-center mt-1">Enter the 6-digit code from your authenticator app</div>
           </div>
           <button type="submit" class="btn btn-primary w-100 fw-medium" id="LoginSubmitBtn">
             Sign In
@@ -134,10 +143,36 @@
     <div class="MainContent d-flex flex-column flex-grow-1 overflow-hidden">
       <header class="navbar navbar-expand border-bottom px-4 py-2 TopNavbar">
         <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-sm btn-outline-secondary d-md-none me-1" id="MobileSidebarToggle" title="Toggle Sidebar">
+            <i class="bi bi-list fs-5"></i>
+          </button>
           <h1 class="h5 mb-0 fw-medium" id="PageTitle">Container Instances</h1>
         </div>
 
         <div class="ms-auto d-flex align-items-center gap-2" id="TopNavbarActions">
+          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" id="OpenCommandPaletteBtn" title="Command Palette (Ctrl+K)">
+            <i class="bi bi-command"></i>
+            <span class="d-none d-lg-inline">Palette</span>
+            <kbd class="small text-body-secondary font-monospace d-none d-lg-inline" style="font-size: 0.65rem;">Ctrl+K</kbd>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" id="OpenSecurityModalBtn" title="Security & 2FA Sessions">
+            <i class="bi bi-shield-check"></i>
+            <span class="d-none d-lg-inline">Security & 2FA</span>
+          </button>
+                    <div class="dropdown" id="ThemePickerDropdown">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Change Accent Theme">
+              <i class="bi bi-palette2"></i>
+              <span class="d-none d-lg-inline">Theme</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow p-2" style="min-width: 170px;">
+              <li><h6 class="dropdown-header small text-body-secondary py-1">Accent Theme</h6></li>
+              <li><a class="dropdown-item d-flex align-items-center gap-2 rounded px-2 py-1 small ThemeSelectBtn" href="#" data-theme="indigo"><span class="rounded-circle" style="width: 10px; height: 10px; background: #6366f1;"></span> Linear Indigo</a></li>
+              <li><a class="dropdown-item d-flex align-items-center gap-2 rounded px-2 py-1 small ThemeSelectBtn" href="#" data-theme="emerald"><span class="rounded-circle" style="width: 10px; height: 10px; background: #10b981;"></span> Emerald Cyber</a></li>
+              <li><a class="dropdown-item d-flex align-items-center gap-2 rounded px-2 py-1 small ThemeSelectBtn" href="#" data-theme="violet"><span class="rounded-circle" style="width: 10px; height: 10px; background: #8b5cf6;"></span> Neon Violet</a></li>
+              <li><a class="dropdown-item d-flex align-items-center gap-2 rounded px-2 py-1 small ThemeSelectBtn" href="#" data-theme="amber"><span class="rounded-circle" style="width: 10px; height: 10px; background: #f59e0b;"></span> Amber Flare</a></li>
+              <li><a class="dropdown-item d-flex align-items-center gap-2 rounded px-2 py-1 small ThemeSelectBtn" href="#" data-theme="crimson"><span class="rounded-circle" style="width: 10px; height: 10px; background: #f43f5e;"></span> Crimson Rose</a></li>
+            </ul>
+          </div>
           <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" id="RefreshButton" title="Refresh">
             <i class="bi bi-arrow-clockwise"></i>
             <span>Refresh</span>
@@ -218,10 +253,10 @@
           </div>
 
           <div class="card TableCard shadow-sm">
-            <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2">
-              <div class="d-flex align-items-center gap-2">
+            <div class="card-header TableCardHeader py-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="fw-medium small">Active Docker Workloads</span>
-                <div class="d-flex align-items-center gap-1 ms-3">
+                <div class="d-flex align-items-center gap-1 ms-2">
                   <button class="btn btn-xs btn-outline-success" id="BulkStartBtn" title="Start all stopped containers">
                     <i class="bi bi-play-fill me-1"></i> Start All
                   </button>
@@ -229,10 +264,18 @@
                     <i class="bi bi-stop-fill me-1"></i> Stop All
                   </button>
                 </div>
+                <div class="d-flex align-items-center gap-1 ms-2" id="ServerFilterChips">
+                  <button class="btn btn-xs btn-primary FilterChip active" data-filter="all">All (<span id="ChipCountAll">0</span>)</button>
+                  <button class="btn btn-xs btn-outline-secondary FilterChip" data-filter="running">Running (<span id="ChipCountRunning">0</span>)</button>
+                  <button class="btn btn-xs btn-outline-secondary FilterChip" data-filter="stopped">Stopped (<span id="ChipCountStopped">0</span>)</button>
+                  <button class="btn btn-xs btn-outline-secondary FilterChip" data-filter="databases">Databases</button>
+                  <button class="btn btn-xs btn-outline-secondary FilterChip" data-filter="minecraft">Minecraft</button>
+                  <button class="btn btn-xs btn-outline-secondary FilterChip" data-filter="bots">Bots</button>
+                </div>
               </div>
               <div class="input-group input-group-sm" style="max-width: 240px;">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input type="text" class="form-control" id="SearchServersInput" placeholder="Filter instances...">
+                <input type="text" class="form-control" id="SearchServersInput" placeholder="Filter instances... (/)">
               </div>
             </div>
             <div class="table-responsive">
@@ -271,6 +314,7 @@
                   <h2 class="h5 mb-0 fw-semibold" id="DetailServerTitle">-</h2>
                   <span class="badge" id="DetailStatusBadge">-</span>
                   <span class="badge text-bg-dark border font-monospace" id="DetailTemplateBadge">-</span>
+                  <span class="badge text-bg-danger ms-1 d-none" id="DetailOomBadge"><i class="bi bi-exclamation-triangle-fill me-1"></i> OOM Killed</span>
                 </div>
                 <div class="small text-body-tertiary font-monospace mt-1" id="DetailSubInfo">
                   ID: <span id="DetailServerId">-</span> | Container: <span id="DetailContainerId">-</span>
@@ -300,6 +344,26 @@
             </div>
           </div>
 
+          <div class="card mb-3 p-3 bg-dark border border-secondary border-opacity-25 d-none" id="DbConnectionCard">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-database-fill-gear text-info fs-5"></i>
+                <div>
+                  <div class="small fw-medium text-body">Database Connection URI</div>
+                  <div class="font-monospace small text-body-secondary" id="DbConnectionUriText">loading...</div>
+                </div>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-xs btn-outline-secondary" id="DbToggleMaskBtn" title="Show/Hide Password">
+                  <i class="bi bi-eye"></i> Show
+                </button>
+                <button class="btn btn-xs btn-primary" id="DbCopyUriBtn" title="Copy Connection URI">
+                  <i class="bi bi-clipboard me-1"></i> Copy URI
+                </button>
+              </div>
+            </div>
+          </div>
+
           <ul class="nav nav-tabs DetailTabs mb-3" id="ServerDetailTabs">
             <li class="nav-item">
               <a class="nav-link active" href="#" data-tab="Console">
@@ -319,6 +383,11 @@
             <li class="nav-item">
               <a class="nav-link" href="#" data-tab="Config">
                 <i class="bi bi-sliders me-1"></i> Config & Limits
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-tab="Environment">
+                <i class="bi bi-key me-1"></i> Environment
               </a>
             </li>
             <li class="nav-item">
@@ -344,6 +413,21 @@
           </ul>
 
           <div id="DetailTabConsole">
+            <div class="card mb-3 shadow-sm border TelemetryCard" style="background-color: #07080a;">
+              <div class="card-body p-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-activity text-primary"></i>
+                    <span class="small fw-medium">Real-Time Resource Telemetry</span>
+                  </div>
+                  <div class="d-flex align-items-center gap-3 font-monospace small">
+                    <span class="d-flex align-items-center gap-1" style="color: var(--qir-accent, #6366f1);"><i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> CPU <span id="ChartCpuLabel">0%</span></span>
+                    <span class="d-flex align-items-center gap-1 text-success"><i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> RAM <span id="ChartRamLabel">0%</span></span>
+                  </div>
+                </div>
+                <canvas id="ResourceMetricsCanvas" height="70" style="width: 100%; height: 70px; display: block;"></canvas>
+              </div>
+            </div>
             <div class="card TerminalCard shadow-sm">
               <div class="card-header TerminalCardHeader d-flex align-items-center justify-content-between py-2">
                 <div class="d-flex align-items-center gap-3 font-monospace small">
@@ -404,6 +488,9 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                   <input type="file" id="DetailFilesHiddenInput" style="display: none;">
+                                    <button class="btn btn-sm btn-outline-secondary" id="DetailFilesCompressBtn">
+                    <i class="bi bi-file-earmark-zip me-1"></i> Compress
+                  </button>
                   <button class="btn btn-sm btn-outline-secondary" id="DetailFilesUploadBtn">
                     <i class="bi bi-upload me-1"></i> Upload
                   </button>
@@ -514,6 +601,15 @@
                       </div>
                     </div>
 
+                    <div class="mb-3">
+                      <label for="DetailRestartPolicySelect" class="form-label small fw-medium">Docker Restart Policy</label>
+                      <select class="form-select form-select-sm" id="DetailRestartPolicySelect">
+                        <option value="unless-stopped">Unless Stopped (Recommended)</option>
+                        <option value="always">Always Restart</option>
+                        <option value="on-failure">On Non-Zero Failure Only</option>
+                        <option value="no">Do Not Auto-Restart (Manual)</option>
+                      </select>
+                    </div>
                     <div class="form-check form-switch mb-3">
                       <input class="form-check-input" type="checkbox" id="DetailAutoRestartSwitch">
                       <label class="form-check-label small fw-medium" for="DetailAutoRestartSwitch">
@@ -538,6 +634,28 @@
                   <div class="card-body p-3" id="DetailPortsContainer"></div>
                 </div>
 
+                                <div class="card TableCard shadow-sm mt-3">
+                  <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2 small fw-medium">
+                    <span><i class="bi bi-bell me-1 text-warning"></i> Incident & Alert Webhook</span>
+                    <span class="badge text-bg-secondary" id="DetailCrashCountBadge">0 crashes</span>
+                  </div>
+                  <div class="card-body p-3 small">
+                    <div class="text-body-secondary mb-2" style="font-size: 0.8rem;">
+                      Dispatch instant notifications to Discord or Slack when this container crashes or OOM occurs:
+                    </div>
+                    <div class="mb-2">
+                      <input type="url" class="form-control form-control-sm font-monospace" id="DetailAlertWebhookInput" placeholder="https://discord.com/api/webhooks/...">
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                      <button class="btn btn-xs btn-primary" id="DetailSaveAlertWebhookBtn">
+                        <i class="bi bi-check2 me-1"></i> Save Webhook
+                      </button>
+                      <button class="btn btn-xs btn-outline-secondary" id="DetailTestAlertWebhookBtn">
+                        <i class="bi bi-send me-1"></i> Test Alert
+                      </button>
+                    </div>
+                  </div>
+                </div>
                 <div class="card TableCard shadow-sm">
                   <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2 small fw-medium">
                     <span><i class="bi bi-broadcast me-1"></i> CI/CD Deploy Webhook</span>
@@ -559,6 +677,48 @@
                       POST /api/webhooks/:id/:token
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="DetailTabEnvironment" class="d-none">
+            <div class="card TableCard shadow-sm">
+              <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2">
+                <div>
+                  <span class="fw-medium small"><i class="bi bi-key me-1 text-primary"></i> Container Environment Variables</span>
+                  <span class="small text-body-secondary ms-2">Live Key-Value Store</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-xs btn-outline-secondary" id="EnvToggleMaskBtn">
+                    <i class="bi bi-eye"></i> Show Values
+                  </button>
+                                    <button class="btn btn-xs btn-outline-secondary" id="EnvImportDotEnvBtn">
+                    <i class="bi bi-filetype-raw me-1"></i> Paste .env
+                  </button>
+                  <button class="btn btn-xs btn-outline-primary" id="EnvAddRowBtn">
+                    <i class="bi bi-plus-lg me-1"></i> Add Variable
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-3">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-3" id="DetailEnvTable">
+                    <thead>
+                      <tr>
+                        <th style="width: 35%;">VARIABLE NAME</th>
+                        <th style="width: 55%;">VALUE</th>
+                        <th style="width: 10%; text-align: right;">ACTION</th>
+                      </tr>
+                    </thead>
+                    <tbody id="DetailEnvTableBody"></tbody>
+                  </table>
+                </div>
+                <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+                  <span class="small text-body-secondary">Applying environment variables safely re-instantiates the container with updated parameters.</span>
+                  <button class="btn btn-sm btn-primary" id="SaveEnvVarsBtn">
+                    <i class="bi bi-check2 me-1"></i> Save & Apply Variables
+                  </button>
                 </div>
               </div>
             </div>
@@ -649,9 +809,17 @@
             <div class="card TableCard shadow-sm">
               <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2">
                 <span class="fw-medium small">Security & Audit Event Trail</span>
-                <button class="btn btn-sm btn-outline-secondary" id="DetailRefreshAuditBtn">
-                  <i class="bi bi-arrow-clockwise"></i> Refresh
-                </button>
+                                <div class="d-flex align-items-center gap-1">
+                  <button class="btn btn-sm btn-outline-secondary" id="DetailExportAuditCsvBtn" title="Export Audit Log CSV">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary" id="DetailExportAuditJsonBtn" title="Export Audit Log JSON">
+                    <i class="bi bi-file-earmark-code me-1"></i> JSON
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary" id="DetailRefreshAuditBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                  </button>
+                </div>
               </div>
               <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
@@ -967,7 +1135,7 @@
             </div>
             <div class="mb-2">
               <label for="NewFileInitialContentInput" class="form-label small fw-medium">Initial Content</label>
-              <textarea class="form-control font-monospace" id="NewFileInitialContentInput" rows="5" placeholder="// initial code or config"></textarea>
+              <textarea class="form-control font-monospace" id="NewFileInitialContentInput" rows="5" placeholder="initial code or config"></textarea>
             </div>
           </div>
           <div class="modal-footer">
@@ -1184,7 +1352,129 @@
     </div>
   </div>
 
+    <div class="modal fade" id="SecuritySessionsModal" tabindex="-1" aria-labelledby="SecuritySessionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-medium" id="SecuritySessionsModalLabel">
+            <i class="bi bi-shield-check me-2 text-primary"></i> Account Security & Active Sessions
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="card p-3 mb-4 bg-dark border">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div>
+                <h6 class="fw-semibold mb-1 d-flex align-items-center gap-2">
+                  <span>Two-Factor Authentication (TOTP 2FA)</span>
+                  <span class="badge text-bg-secondary" id="TotpStatusBadge">Disabled</span>
+                </h6>
+                <p class="small text-body-secondary mb-0">Protect your panel account with Google Authenticator, Authy, or 1Password.</p>
+              </div>
+              <div id="TotpActionsContainer">
+                <button class="btn btn-sm btn-primary" id="StartTotpSetupBtn">
+                  <i class="bi bi-qr-code me-1"></i> Setup 2FA
+                </button>
+                <button class="btn btn-sm btn-outline-danger d-none" id="DisableTotpBtn">
+                  Disable 2FA
+                </button>
+              </div>
+            </div>
+
+            <div id="TotpSetupContainer" class="d-none border-top pt-3">
+              <div class="row g-3 align-items-center">
+                <div class="col-md-5 text-center">
+                  <div class="p-2 bg-white rounded d-inline-block shadow-sm" id="TotpQrCodeContainer"></div>
+                </div>
+                <div class="col-md-7">
+                  <label class="form-label small fw-medium">Manual Setup Key:</label>
+                  <div class="input-group input-group-sm mb-3">
+                    <input type="text" class="form-control font-monospace" id="TotpSecretManualInput" readonly>
+                    <button class="btn btn-outline-secondary" id="CopyTotpSecretBtn" type="button"><i class="bi bi-clipboard"></i></button>
+                  </div>
+                  <label for="TotpVerifyInput" class="form-label small fw-medium">Confirm 6-Digit Authenticator Code:</label>
+                  <div class="input-group input-group-sm mb-2">
+                    <input type="text" class="form-control font-monospace text-center fs-6" id="TotpVerifyInput" maxlength="6" placeholder="000000">
+                    <button class="btn btn-success" id="ConfirmTotpBtn" type="button">Verify & Enable</button>
+                  </div>
+                  <div class="small text-danger d-none" id="TotpErrorAlert"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-3 bg-dark border">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div>
+                <h6 class="fw-semibold mb-1">Active Login Sessions</h6>
+                <p class="small text-body-secondary mb-0">Review active browser sessions and revoke access remotely.</p>
+              </div>
+              <button class="btn btn-xs btn-outline-warning" id="RevokeOtherSessionsBtn">
+                <i class="bi bi-box-arrow-right me-1"></i> Revoke Other Sessions
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0" id="ActiveSessionsTable">
+                <thead>
+                  <tr>
+                    <th scope="col" class="py-2">DEVICE / BROWSER</th>
+                    <th scope="col" class="py-2">IP ADDRESS</th>
+                    <th scope="col" class="py-2">SESSION CREATED</th>
+                    <th scope="col" class="py-2 text-end pe-2">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody id="ActiveSessionsTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="CommandPaletteModal" tabindex="-1" aria-labelledby="CommandPaletteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content CommandPaletteContent border">
+        <div class="modal-header border-0 pb-0">
+          <div class="input-group input-group-lg w-100">
+            <span class="input-group-text bg-transparent border-0 text-primary ps-0"><i class="bi bi-search fs-4"></i></span>
+            <input type="text" class="form-control bg-transparent border-0 fs-5 ps-1 text-light shadow-none" id="CommandPaletteInput" placeholder="Search servers, navigation, or commands... (ESC to close)">
+          </div>
+        </div>
+        <div class="modal-body pt-2 px-3 pb-3">
+          <div class="small text-body-secondary mb-2 px-2 text-uppercase tracking-wider font-monospace" style="font-size:0.7rem;">Quick Results</div>
+          <div class="CommandPaletteList d-flex flex-column gap-1" id="CommandPaletteList" style="max-height: 380px; overflow-y: auto;"></div>
+        </div>
+        <div class="modal-footer border-top py-2 px-3 d-flex justify-content-between text-body-tertiary small font-monospace" style="font-size:0.75rem;">
+          <span>Navigate: <kbd>↑</kbd> <kbd>↓</kbd></span>
+          <span>Select: <kbd>Enter</kbd></span>
+          <span>Close: <kbd>Esc</kbd></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="App.js" type="module"></script>
+  <div class="modal fade" id="BulkDotEnvModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content CommandPaletteContent">
+        <div class="modal-header border-bottom py-2 px-3">
+          <h6 class="modal-title small fw-medium"><i class="bi bi-filetype-raw me-1 text-primary"></i> Paste Environment Variables (.env)</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-3">
+          <p class="small text-body-secondary mb-2">Paste raw .env key-value lines below (comments and empty lines ignored):</p>
+          <textarea class="form-control font-monospace small" id="BulkDotEnvTextarea" rows="8" placeholder="PORT=3000
+NODE_ENV=production
+DATABASE_URL=postgres://..."></textarea>
+        </div>
+        <div class="modal-footer border-top py-2 px-3">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-primary" id="BulkDotEnvApplyBtn">Import Variables</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

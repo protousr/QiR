@@ -10,7 +10,7 @@ export class MariaDbTemplate extends BaseTemplate {
   public readonly Name = "MariaDB / MySQL Database";
   public readonly Description = "Fast and scalable relational MySQL/MariaDB database with persistent storage and custom databases.";
   public readonly Category: TemplateCategory = "Database";
-  public readonly DefaultImage = "mariadb:11-alpine";
+  public readonly DefaultImage = "mariadb:lts";
   public readonly VolumeMountPath = "/var/lib/mysql";
 
   public readonly DefaultPorts: IPortMapping[] = [
