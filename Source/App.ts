@@ -4,6 +4,7 @@ import fastifyCookie from "@fastify/cookie";
 import fastifyWebsocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
+import fs from "node:fs";
 import { AuthRoutes } from "./Web/Routes/AuthRoutes.js";
 import { ServerRoutes } from "./Web/Routes/ServerRoutes.js";
 import { TemplateRoutes } from "./Web/Routes/TemplateRoutes.js";
@@ -34,7 +35,10 @@ export async function BuildApp(): Promise<FastifyInstance> {
 
   await app.register(fastifyWebsocket);
 
-  const publicPath = path.resolve(process.cwd(), "Source", "Public");
+  const distPublic = path.resolve(process.cwd(), "Distribution", "Public");
+  const srcPublic = path.resolve(process.cwd(), "Source", "Public");
+  const publicPath = fs.existsSync(distPublic) ? distPublic : srcPublic;
+
   await app.register(fastifyStatic, {
     root: publicPath,
     prefix: "/",

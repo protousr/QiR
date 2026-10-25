@@ -2,12 +2,14 @@
   "name": "qir",
   "version": "1.0.0",
   "description": "Modular Docker Container Hosting Panel",
-  "main": "Source/Main.ts",
+  "main": "Distribution/Main.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "start": "tsx Source/Main.ts",
-    "dev": "tsx watch Source/Main.ts"
+    "build:server": "tsc",
+    "build:client": "esbuild Source/Public/App.js --bundle --minify --format=esm --target=es2022 --outfile=Distribution/Public/App.js && esbuild Source/Public/Style.css --minify --outfile=Distribution/Public/Style.css && html-minifier-terser --collapse-whitespace --remove-comments Source/Public/Index.html -o Distribution/Public/Index.html",
+    "build": "npm run build:server && npm run build:client",
+    "start": "npm run build && node Distribution/Main.js",
+    "dev": "npm run build:client && tsx watch Source/Main.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",
@@ -23,6 +25,8 @@
     "@types/dockerode": "^4.0.2",
     "@types/node": "^26.6.5",
     "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "html-minifier-terser": "^7.2.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

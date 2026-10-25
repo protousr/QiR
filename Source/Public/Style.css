@@ -30,13 +30,19 @@ body {
   height: 100vh;
   width: 100vw;
   background-color: var(--qir-bg-base);
+  display: flex !important;
+  flex-direction: row;
 }
 
 .Sidebar {
   width: 255px;
+  min-width: 255px;
   height: 100vh;
   background-color: var(--qir-bg-surface);
   border-color: var(--qir-border) !important;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
 }
 
 .LogoBox {
@@ -95,6 +101,11 @@ body {
 .MainContent {
   height: 100vh;
   background-color: var(--qir-bg-base);
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .TopNavbar {
@@ -103,6 +114,8 @@ body {
 }
 
 .ContentArea {
+  flex: 1 1 auto;
+  overflow-y: auto;
   background-color: var(--qir-bg-base);
 }
 
@@ -285,10 +298,6 @@ body {
   justify-content: center;
 }
 
-.hidden {
-  display: none !important;
-}
-
 .AuthCard {
   width: 100%;
   max-width: 400px;
@@ -300,4 +309,8 @@ body {
 .AuthIconBox {
   background-color: var(--qir-accent-subtle);
   border: 1px solid rgba(94, 106, 210, 0.3);
+}
+
+.hidden {
+  display: none !important;
 }
