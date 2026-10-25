@@ -9,4 +9,9 @@ export async function SystemRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get("/system/status", controller.GetSystemStatus);
   fastify.get("/system/audit", controller.GetAuditLogs);
   fastify.get("/system/audit/export", controller.ExportAuditLogs);
+  fastify.get("/system/docker/df", controller.GetDockerDiskUsage);
+  fastify.post<{ Body: { Target: "images" | "containers" | "volumes" | "builder" | "all" } }>(
+    "/system/docker/prune",
+    controller.PruneDockerSystem
+  );
 }

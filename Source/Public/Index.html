@@ -315,6 +315,7 @@
                   <span class="badge" id="DetailStatusBadge">-</span>
                   <span class="badge text-bg-dark border font-monospace" id="DetailTemplateBadge">-</span>
                   <span class="badge text-bg-danger ms-1 d-none" id="DetailOomBadge"><i class="bi bi-exclamation-triangle-fill me-1"></i> OOM Killed</span>
+                  <span class="badge text-bg-success ms-1 d-none" id="DetailHealthBadge"><i class="bi bi-heart-pulse-fill me-1"></i> Healthy</span>
                 </div>
                 <div class="small text-body-tertiary font-monospace mt-1" id="DetailSubInfo">
                   ID: <span id="DetailServerId">-</span> | Container: <span id="DetailContainerId">-</span>
@@ -323,6 +324,9 @@
             </div>
 
             <div class="d-flex align-items-center gap-2">
+              <button class="btn btn-sm btn-outline-primary" id="DetailQuickExecBtn" title="Run One-Off Command">
+                <i class="bi bi-terminal-fill me-1"></i> Exec
+              </button>
               <button class="btn btn-sm btn-outline-success" id="DetailStartBtn" title="Start Container">
                 <i class="bi bi-play-fill me-1"></i> Start
               </button>
@@ -450,12 +454,23 @@
                   </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                  <div class="input-group input-group-sm d-none d-md-flex" style="width: 190px;">
+                    <span class="input-group-text bg-transparent border-secondary text-body-secondary py-0"><i class="bi bi-funnel"></i></span>
+                    <input type="text" class="form-control form-control-sm font-monospace bg-transparent border-secondary text-body py-0" id="ConsoleLogFilterInput" placeholder="Filter logs...">
+                    <button class="btn btn-outline-secondary py-0 px-2 d-none" type="button" id="ConsoleClearFilterBtn"><i class="bi bi-x"></i></button>
+                  </div>
                   <div class="form-check form-switch mb-0 small">
                     <input class="form-check-input" type="checkbox" id="DetailConsoleAutoscroll" checked>
                     <label class="form-check-label text-body-secondary" for="DetailConsoleAutoscroll">Auto-scroll</label>
                   </div>
-                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="DetailConsoleClearBtn">
-                    Clear
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="DetailConsoleDownloadBtn" title="Export Console Output">
+                    <i class="bi bi-download"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="DetailConsoleClearBtn" title="Clear Viewport">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="DetailConsoleFullscreenBtn" title="Toggle Fullscreen">
+                    <i class="bi bi-arrows-fullscreen"></i>
                   </button>
                 </div>
               </div>
@@ -577,6 +592,16 @@
                     Lifecycle & Resource Limits
                   </div>
                   <div class="card-body p-3">
+                    <div class="mb-3">
+                      <label class="form-label small fw-medium text-body-secondary d-block">Quick Resource Presets</label>
+                      <div class="btn-group btn-group-sm w-100" role="group">
+                        <button type="button" class="btn btn-outline-secondary ConfigResourcePresetBtn" data-mem="0" data-cpu="0">Max</button>
+                        <button type="button" class="btn btn-outline-secondary ConfigResourcePresetBtn" data-mem="536870912" data-cpu="50">Micro (512M / 0.5C)</button>
+                        <button type="button" class="btn btn-outline-secondary ConfigResourcePresetBtn" data-mem="1073741824" data-cpu="100">Std (1G / 1C)</button>
+                        <button type="button" class="btn btn-outline-secondary ConfigResourcePresetBtn" data-mem="2147483648" data-cpu="200">High (2G / 2C)</button>
+                        <button type="button" class="btn btn-outline-secondary ConfigResourcePresetBtn" data-mem="4294967296" data-cpu="400">Extreme (4G / 4C)</button>
+                      </div>
+                    </div>
                     <div class="row g-3 mb-3">
                       <div class="col-md-6">
                         <label for="DetailMemoryLimitSelect" class="form-label small fw-medium">Memory Allocation Limit</label>
@@ -676,6 +701,22 @@
                     <div class="text-body-secondary font-monospace" style="font-size: 0.72rem;">
                       POST /api/webhooks/:id/:token
                     </div>
+                  </div>
+                </div>
+
+                <div class="card TableCard shadow-sm mt-3">
+                  <div class="card-header TableCardHeader py-2 small fw-medium">
+                    <i class="bi bi-gear-wide-connected me-1 text-primary"></i> DevOps &amp; Low-Level Tools
+                  </div>
+                  <div class="card-body p-3 small d-flex flex-column gap-2">
+                    <button class="btn btn-sm btn-outline-secondary w-100 text-start d-flex align-items-center justify-content-between" id="DetailOpenInspectBtn">
+                      <span><i class="bi bi-code-slash me-2 text-info"></i> Raw Docker Inspect JSON</span>
+                      <i class="bi bi-chevron-right"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary w-100 text-start d-flex align-items-center justify-content-between" id="DetailExportVolumeBtn">
+                      <span><i class="bi bi-box-arrow-down me-2 text-success"></i> Export Volume (.tar.gz)</span>
+                      <i class="bi bi-download"></i>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -963,6 +1004,68 @@
                 </div>
               </div>
             </div>
+            <div class="col-12">
+              <div class="card TableCard shadow-sm">
+                <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2 fw-medium">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-trash3 text-primary"></i>
+                    <span>Docker Storage &amp; Space Reclaim Engine</span>
+                  </div>
+                  <button class="btn btn-xs btn-outline-secondary" id="RefreshDockerDiskUsageBtn">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Refresh Usage
+                  </button>
+                </div>
+                <div class="card-body p-3">
+                  <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                      <div class="p-3 rounded border border-secondary border-opacity-25" style="background-color: #0b0d10;">
+                        <div class="small text-body-secondary text-uppercase fw-semibold">Layers &amp; Images</div>
+                        <div class="fs-5 fw-bold font-monospace text-primary mt-1" id="DockerLayersSizeLabel">0 MB</div>
+                        <div class="small text-body-tertiary" id="DockerImagesCountLabel">0 images</div>
+                      </div>
+                    </div>
+                    <div class="col-md-3">
+                      <div class="p-3 rounded border border-secondary border-opacity-25" style="background-color: #0b0d10;">
+                        <div class="small text-body-secondary text-uppercase fw-semibold">Containers Active</div>
+                        <div class="fs-5 fw-bold font-monospace text-info mt-1" id="DockerContainersCountLabel">0</div>
+                        <div class="small text-body-tertiary">running &amp; stopped</div>
+                      </div>
+                    </div>
+                    <div class="col-md-3">
+                      <div class="p-3 rounded border border-secondary border-opacity-25" style="background-color: #0b0d10;">
+                        <div class="small text-body-secondary text-uppercase fw-semibold">Volumes</div>
+                        <div class="fs-5 fw-bold font-monospace text-success mt-1" id="DockerVolumesCountLabel">0</div>
+                        <div class="small text-body-tertiary">local storage volumes</div>
+                      </div>
+                    </div>
+                    <div class="col-md-3">
+                      <div class="p-3 rounded border border-secondary border-opacity-25" style="background-color: #0b0d10;">
+                        <div class="small text-body-secondary text-uppercase fw-semibold">Build Cache</div>
+                        <div class="fs-5 fw-bold font-monospace text-warning mt-1" id="DockerBuildCacheSizeLabel">0 MB</div>
+                        <div class="small text-body-tertiary">builder cache</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="PruneImagesBtn">
+                      <i class="bi bi-disc me-1"></i> Prune Unused Images
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="PruneContainersBtn">
+                      <i class="bi bi-box me-1"></i> Prune Stopped Containers
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="PruneVolumesBtn">
+                      <i class="bi bi-hdd me-1"></i> Prune Dangling Volumes
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="PruneBuilderBtn">
+                      <i class="bi bi-hammer me-1"></i> Prune Build Cache
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger ms-auto" id="PruneAllBtn">
+                      <i class="bi bi-trash-fill me-1"></i> System Prune All
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -1103,16 +1206,31 @@
           <div class="d-flex align-items-center gap-2">
             <i class="bi bi-file-earmark-code text-primary"></i>
             <span class="fw-medium font-monospace small" id="FileEditorPathLabel">/</span>
+            <span class="badge text-bg-primary font-monospace ms-2" id="FileEditorLangBadge">TEXT</span>
+            <span class="badge text-bg-dark border font-monospace ms-1" id="FileEditorStatsBadge">0 lines</span>
           </div>
           <div class="ms-auto d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" id="FileEditorWrapBtn" title="Toggle Line Wrap">
+              <i class="bi bi-text-wrap"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" id="FileEditorDownloadBtn" title="Download File">
+              <i class="bi bi-download"></i>
+            </button>
             <button type="button" class="btn btn-sm btn-primary" id="FileEditorSaveBtn">
               <i class="bi bi-save me-1"></i> Save Changes
             </button>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
         </div>
-        <div class="modal-body p-0" style="height: 550px; background-color: #07080a;">
-          <textarea class="form-control font-monospace h-100 border-0 text-light p-3" id="FileEditorTextarea" style="background-color: #07080a; resize: none; font-size: 0.85rem; line-height: 1.5; white-space: pre;" spellcheck="false"></textarea>
+        <div class="modal-body p-0 d-flex flex-column" style="height: 550px; background-color: #07080a;">
+          <div class="d-flex flex-grow-1 position-relative overflow-hidden" style="min-height: 0;">
+            <div id="FileEditorGutter" class="font-monospace text-body-secondary py-3 px-2 text-end user-select-none border-end border-secondary border-opacity-25" style="width: 52px; background-color: #0b0d10; overflow: hidden; font-size: 0.85rem; line-height: 1.5;">1</div>
+            <textarea class="form-control font-monospace h-100 border-0 text-light py-3 px-3 flex-grow-1" id="FileEditorTextarea" style="background-color: #07080a; resize: none; font-size: 0.85rem; line-height: 1.5; white-space: pre; outline: none; box-shadow: none;" spellcheck="false"></textarea>
+          </div>
+          <div class="d-flex align-items-center justify-content-between px-3 py-1 border-top border-secondary border-opacity-25 small font-monospace text-body-secondary flex-shrink-0" style="background-color: #0b0d10; font-size: 0.75rem;">
+            <span id="FileEditorFooterStatus">Ready</span>
+            <span>Shortcut: Ctrl+S to save</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1454,8 +1572,6 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="App.js" type="module"></script>
   <div class="modal fade" id="BulkDotEnvModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content CommandPaletteContent">
@@ -1476,5 +1592,86 @@ DATABASE_URL=postgres://..."></textarea>
       </div>
     </div>
   </div>
+
+  <div class="modal fade" id="InspectContainerModal" tabindex="-1" aria-labelledby="InspectContainerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-lg-down">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-filetype-json text-primary fs-5"></i>
+            <div>
+              <h5 class="modal-title fs-6 fw-medium mb-0">Raw Docker Container Inspection</h5>
+              <div class="small font-monospace text-body-secondary" id="InspectModalContainerIdLabel">-</div>
+            </div>
+          </div>
+          <div class="ms-auto d-flex align-items-center gap-2">
+            <div class="input-group input-group-sm" style="width: 220px;">
+              <span class="input-group-text bg-transparent border-secondary text-body-secondary"><i class="bi bi-search"></i></span>
+              <input type="text" class="form-control form-control-sm font-monospace bg-transparent border-secondary text-body" id="InspectSearchInput" placeholder="Filter keys...">
+            </div>
+            <button type="button" class="btn btn-sm btn-primary" id="InspectCopyJsonBtn">
+              <i class="bi bi-clipboard me-1"></i> Copy JSON
+            </button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+        </div>
+        <div class="modal-body p-0" style="height: 600px; background-color: #07080a;">
+          <pre class="m-0 p-3 h-100 overflow-auto font-monospace small text-body" id="InspectContainerJsonPre" style="background-color: #07080a; line-height: 1.5; font-size: 0.82rem; white-space: pre-wrap; word-break: break-all;"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="QuickExecModal" tabindex="-1" aria-labelledby="QuickExecModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-terminal-fill text-primary"></i>
+            <h5 class="modal-title fs-6 fw-medium mb-0">Execute Command Inside Container</h5>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="QuickExecForm">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label small fw-medium">Command</label>
+              <div class="input-group">
+                <span class="input-group-text font-monospace bg-dark text-primary border-secondary">$</span>
+                <input type="text" class="form-control font-monospace" id="QuickExecCommandInput" placeholder="e.g. uname -a, ps aux, cat /etc/os-release" required autocomplete="off">
+                <button type="submit" class="btn btn-primary" id="QuickExecRunBtn">
+                  <i class="bi bi-play-fill me-1"></i> Run
+                </button>
+              </div>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+              <span class="small text-body-secondary font-monospace" style="font-size: 0.75rem;">PRESETS:</span>
+              <button type="button" class="btn btn-xs btn-outline-secondary QuickExecPresetBtn" data-cmd="uname -a">uname -a</button>
+              <button type="button" class="btn btn-xs btn-outline-secondary QuickExecPresetBtn" data-cmd="cat /etc/os-release">os-release</button>
+              <button type="button" class="btn btn-xs btn-outline-secondary QuickExecPresetBtn" data-cmd="uptime">uptime</button>
+              <button type="button" class="btn btn-xs btn-outline-secondary QuickExecPresetBtn" data-cmd="df -h">df -h</button>
+              <button type="button" class="btn btn-xs btn-outline-secondary QuickExecPresetBtn" data-cmd="ps aux">ps aux</button>
+              <button type="button" class="btn btn-xs btn-outline-secondary QuickExecPresetBtn" data-cmd="env">env</button>
+            </div>
+            <div>
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="small fw-medium text-body-secondary">Execution Output</span>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge text-bg-dark border font-monospace small d-none" id="QuickExecExitBadge">Exit: 0</span>
+                  <button type="button" class="btn btn-xs btn-outline-secondary" id="QuickExecCopyBtn" title="Copy Output">
+                    <i class="bi bi-clipboard"></i>
+                  </button>
+                </div>
+              </div>
+              <pre class="m-0 p-3 rounded font-monospace small" id="QuickExecOutputPre" style="background-color: #07080a; min-height: 180px; max-height: 350px; overflow: auto; border: 1px solid var(--qir-border); color: #d1d5db;">Output will appear here...</pre>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="App.js" type="module"></script>
 </body>
 </html>

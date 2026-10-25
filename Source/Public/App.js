@@ -255,6 +255,43 @@ const Elements = {
   TemplatesGrid: document.getElementById("TemplatesGrid"),
   HostInfoTableBody: document.getElementById("HostInfoTableBody"),
   DockerDiagTableBody: document.getElementById("DockerDiagTableBody"),
+  DetailHealthBadge: document.getElementById("DetailHealthBadge"),
+  DetailQuickExecBtn: document.getElementById("DetailQuickExecBtn"),
+  ConsoleLogFilterInput: document.getElementById("ConsoleLogFilterInput"),
+  ConsoleClearFilterBtn: document.getElementById("ConsoleClearFilterBtn"),
+  DetailConsoleDownloadBtn: document.getElementById("DetailConsoleDownloadBtn"),
+  DetailConsoleFullscreenBtn: document.getElementById("DetailConsoleFullscreenBtn"),
+  DetailOpenInspectBtn: document.getElementById("DetailOpenInspectBtn"),
+  DetailExportVolumeBtn: document.getElementById("DetailExportVolumeBtn"),
+  FileEditorLangBadge: document.getElementById("FileEditorLangBadge"),
+  FileEditorStatsBadge: document.getElementById("FileEditorStatsBadge"),
+  FileEditorWrapBtn: document.getElementById("FileEditorWrapBtn"),
+  FileEditorDownloadBtn: document.getElementById("FileEditorDownloadBtn"),
+  FileEditorGutter: document.getElementById("FileEditorGutter"),
+  FileEditorFooterStatus: document.getElementById("FileEditorFooterStatus"),
+  InspectContainerModal: document.getElementById("InspectContainerModal"),
+  InspectModalContainerIdLabel: document.getElementById("InspectModalContainerIdLabel"),
+  InspectSearchInput: document.getElementById("InspectSearchInput"),
+  InspectCopyJsonBtn: document.getElementById("InspectCopyJsonBtn"),
+  InspectContainerJsonPre: document.getElementById("InspectContainerJsonPre"),
+  QuickExecModal: document.getElementById("QuickExecModal"),
+  QuickExecForm: document.getElementById("QuickExecForm"),
+  QuickExecCommandInput: document.getElementById("QuickExecCommandInput"),
+  QuickExecRunBtn: document.getElementById("QuickExecRunBtn"),
+  QuickExecExitBadge: document.getElementById("QuickExecExitBadge"),
+  QuickExecCopyBtn: document.getElementById("QuickExecCopyBtn"),
+  QuickExecOutputPre: document.getElementById("QuickExecOutputPre"),
+  RefreshDockerDiskUsageBtn: document.getElementById("RefreshDockerDiskUsageBtn"),
+  DockerLayersSizeLabel: document.getElementById("DockerLayersSizeLabel"),
+  DockerImagesCountLabel: document.getElementById("DockerImagesCountLabel"),
+  DockerContainersCountLabel: document.getElementById("DockerContainersCountLabel"),
+  DockerVolumesCountLabel: document.getElementById("DockerVolumesCountLabel"),
+  DockerBuildCacheSizeLabel: document.getElementById("DockerBuildCacheSizeLabel"),
+  PruneImagesBtn: document.getElementById("PruneImagesBtn"),
+  PruneContainersBtn: document.getElementById("PruneContainersBtn"),
+  PruneVolumesBtn: document.getElementById("PruneVolumesBtn"),
+  PruneBuilderBtn: document.getElementById("PruneBuilderBtn"),
+  PruneAllBtn: document.getElementById("PruneAllBtn"),
 };
 
 function GetBootstrapModal(element) {
@@ -592,6 +629,7 @@ function SwitchView(viewName) {
     Elements.SectionSystem.classList.remove("d-none");
     Elements.PageTitle.textContent = "System & Docker Diagnostics";
     FetchSystemStatus();
+    FetchDockerDiskUsage();
   }
 }
 
@@ -1309,6 +1347,25 @@ function UpdateDetailServerHeader(server) {
     oomBadge.classList.toggle("d-none", !server.OomKilled);
   }
 
+  const healthBadge = document.getElementById("DetailHealthBadge");
+  if (healthBadge) {
+    if (server.HealthStatus && server.HealthStatus !== "none") {
+      healthBadge.classList.remove("d-none");
+      if (server.HealthStatus === "healthy") {
+        healthBadge.className = "badge text-bg-success ms-1";
+        healthBadge.innerHTML = `<i class="bi bi-heart-pulse-fill me-1"></i> Healthy`;
+      } else if (server.HealthStatus === "starting") {
+        healthBadge.className = "badge text-bg-warning text-dark ms-1";
+        healthBadge.innerHTML = `<i class="bi bi-hourglass-split me-1"></i> Healthcheck Starting`;
+      } else {
+        healthBadge.className = "badge text-bg-danger ms-1";
+        healthBadge.innerHTML = `<i class="bi bi-heart-pulse-fill me-1"></i> Unhealthy`;
+      }
+    } else {
+      healthBadge.classList.add("d-none");
+    }
+  }
+
   const dbCard = document.getElementById("DbConnectionCard");
   if (dbCard) {
     const isDb = (server.TemplateId.includes("mariadb") || server.TemplateId.includes("postgresql") || server.TemplateId.includes("mongo") || server.TemplateId.includes("redis"));
@@ -1565,10 +1622,47 @@ function RenderServerFilesTable(files) {
   }
 }
 
+function DetectFileLanguage(fileName) {
+  const ext = (fileName.split(".").pop() || "").toLowerCase();
+  switch (ext) {
+    case "json": return "JSON";
+    case "js": case "mjs": case "cjs": return "JAVASCRIPT";
+    case "ts": return "TYPESCRIPT";
+    case "py": return "PYTHON";
+    case "html": return "HTML";
+    case "css": return "CSS";
+    case "env": return "ENV";
+    case "yaml": case "yml": return "YAML";
+    case "sql": return "SQL";
+    case "sh": case "bash": return "BASH";
+    case "md": return "MARKDOWN";
+    case "dockerfile": return "DOCKER";
+    default: return "TEXT";
+  }
+}
+
+function UpdateEditorGutter() {
+  if (!Elements.FileEditorTextarea || !Elements.FileEditorGutter) return;
+  const val = Elements.FileEditorTextarea.value;
+  const lineCount = val.split("\n").length;
+  let gutterHtml = "";
+  for (let i = 1; i <= lineCount; i++) {
+    gutterHtml += `${i}<br>`;
+  }
+  Elements.FileEditorGutter.innerHTML = gutterHtml;
+  if (Elements.FileEditorStatsBadge) {
+    Elements.FileEditorStatsBadge.textContent = `${lineCount} lines (${(new Blob([val]).size / 1024).toFixed(1)} KB)`;
+  }
+}
+
 async function OpenFileEditor(serverId, filePath) {
   ActiveEditFilePath = filePath;
   Elements.FileEditorPathLabel.textContent = `/${filePath}`;
+  if (Elements.FileEditorLangBadge) {
+    Elements.FileEditorLangBadge.textContent = DetectFileLanguage(filePath);
+  }
   Elements.FileEditorTextarea.value = "Loading file content...";
+  UpdateEditorGutter();
 
   const modal = GetBootstrapModal(Elements.FileEditorModal);
   if (modal) modal.show();
@@ -1583,6 +1677,10 @@ async function OpenFileEditor(serverId, filePath) {
     }
   } catch {
     Elements.FileEditorTextarea.value = "Network error loading file content.";
+  }
+  UpdateEditorGutter();
+  if (Elements.FileEditorFooterStatus) {
+    Elements.FileEditorFooterStatus.textContent = "UTF-8 | Ready | Press Ctrl+S to save";
   }
 }
 
@@ -2454,6 +2552,11 @@ if (typeof window !== "undefined") {
     FetchServerAuditLogs,
     FetchServerSchedules,
     DrawResourceChart,
+    FetchDockerDiskUsage,
+    OpenDockerInspectModal,
+    OpenQuickExecModal,
+    OpenFileEditor,
+    ToggleTerminalFullscreen,
   };
 }
 
@@ -3219,5 +3322,306 @@ function SetupExtraServerFeatures() {
     Elements.DetailExportAuditJsonBtn.addEventListener("click", () => {
       window.open("/api/system/audit/export?Format=json", "_blank");
     });
+  }
+
+  if (Elements.DetailQuickExecBtn) {
+    Elements.DetailQuickExecBtn.addEventListener("click", OpenQuickExecModal);
+  }
+  if (Elements.QuickExecForm) {
+    Elements.QuickExecForm.addEventListener("submit", HandleQuickExecSubmit);
+  }
+  if (Elements.QuickExecCopyBtn) {
+    Elements.QuickExecCopyBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(Elements.QuickExecOutputPre.textContent);
+      ShowToast("Output copied to clipboard", "success");
+    });
+  }
+  document.querySelectorAll(".QuickExecPresetBtn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      Elements.QuickExecCommandInput.value = btn.dataset.cmd;
+    });
+  });
+
+  if (Elements.DetailConsoleFullscreenBtn) {
+    Elements.DetailConsoleFullscreenBtn.addEventListener("click", ToggleTerminalFullscreen);
+  }
+  if (Elements.DetailConsoleDownloadBtn) {
+    Elements.DetailConsoleDownloadBtn.addEventListener("click", DownloadConsoleLogs);
+  }
+  if (Elements.ConsoleLogFilterInput) {
+    Elements.ConsoleLogFilterInput.addEventListener("input", HandleConsoleFilterInput);
+  }
+  if (Elements.ConsoleClearFilterBtn) {
+    Elements.ConsoleClearFilterBtn.addEventListener("click", () => {
+      Elements.ConsoleLogFilterInput.value = "";
+      HandleConsoleFilterInput();
+    });
+  }
+
+  document.querySelectorAll(".ConfigResourcePresetBtn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".ConfigResourcePresetBtn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (Elements.DetailMemoryLimitSelect) {
+        Elements.DetailMemoryLimitSelect.value = btn.dataset.mem;
+      }
+      if (Elements.DetailCpuSharesSelect) {
+        Elements.DetailCpuSharesSelect.value = btn.dataset.cpu;
+      }
+    });
+  });
+
+  if (Elements.FileEditorWrapBtn) {
+    Elements.FileEditorWrapBtn.addEventListener("click", () => {
+      Elements.FileEditorTextarea.classList.toggle("wrap-active");
+      ShowToast("Line wrapping toggled", "info");
+    });
+  }
+  if (Elements.FileEditorDownloadBtn) {
+    Elements.FileEditorDownloadBtn.addEventListener("click", () => {
+      const text = Elements.FileEditorTextarea.value;
+      const fileName = ActiveEditFilePath ? ActiveEditFilePath.split("/").pop() : "file.txt";
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  }
+  if (Elements.FileEditorTextarea) {
+    Elements.FileEditorTextarea.addEventListener("input", UpdateEditorGutter);
+    Elements.FileEditorTextarea.addEventListener("scroll", () => {
+      if (Elements.FileEditorGutter) Elements.FileEditorGutter.scrollTop = Elements.FileEditorTextarea.scrollTop;
+    });
+    Elements.FileEditorTextarea.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        HandleFileEditorSave();
+      }
+    });
+  }
+
+  if (Elements.DetailOpenInspectBtn) {
+    Elements.DetailOpenInspectBtn.addEventListener("click", OpenDockerInspectModal);
+  }
+  if (Elements.InspectCopyJsonBtn) {
+    Elements.InspectCopyJsonBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(Elements.InspectContainerJsonPre.textContent);
+      ShowToast("Inspect JSON copied to clipboard", "success");
+    });
+  }
+  if (Elements.InspectSearchInput) {
+    Elements.InspectSearchInput.addEventListener("input", () => {
+      RenderInspectJson(RawInspectData, Elements.InspectSearchInput.value);
+    });
+  }
+
+  if (Elements.DetailExportVolumeBtn) {
+    Elements.DetailExportVolumeBtn.addEventListener("click", ExportFullVolume);
+  }
+
+  if (Elements.RefreshDockerDiskUsageBtn) {
+    Elements.RefreshDockerDiskUsageBtn.addEventListener("click", FetchDockerDiskUsage);
+  }
+  if (Elements.PruneImagesBtn) {
+    Elements.PruneImagesBtn.addEventListener("click", () => TriggerDockerPrune("images"));
+  }
+  if (Elements.PruneContainersBtn) {
+    Elements.PruneContainersBtn.addEventListener("click", () => TriggerDockerPrune("containers"));
+  }
+  if (Elements.PruneVolumesBtn) {
+    Elements.PruneVolumesBtn.addEventListener("click", () => TriggerDockerPrune("volumes"));
+  }
+  if (Elements.PruneBuilderBtn) {
+    Elements.PruneBuilderBtn.addEventListener("click", () => TriggerDockerPrune("builder"));
+  }
+  if (Elements.PruneAllBtn) {
+    Elements.PruneAllBtn.addEventListener("click", () => TriggerDockerPrune("all"));
+  }
+}
+
+let RawInspectData = null;
+
+function ToggleTerminalFullscreen() {
+  const card = document.querySelector(".TerminalCard");
+  if (!card) return;
+  const isFs = card.classList.toggle("TerminalFullscreenMode");
+  const icon = Elements.DetailConsoleFullscreenBtn?.querySelector("i");
+  if (icon) {
+    icon.className = isFs ? "bi bi-fullscreen-exit" : "bi bi-arrows-fullscreen";
+  }
+  ScrollTerminalToBottom();
+}
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const card = document.querySelector(".TerminalCard.TerminalFullscreenMode");
+    if (card) {
+      ToggleTerminalFullscreen();
+    }
+  }
+});
+
+function DownloadConsoleLogs() {
+  const text = Elements.DetailTerminalOutput?.innerText || "";
+  if (!text.trim()) {
+    ShowToast("No console logs to download", "warning");
+    return;
+  }
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `qir-${ActiveDetailServerId || "server"}-logs.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  ShowToast("Logs exported successfully", "success");
+}
+
+function HandleConsoleFilterInput() {
+  const query = Elements.ConsoleLogFilterInput?.value.trim().toLowerCase() || "";
+  if (Elements.ConsoleClearFilterBtn) {
+    Elements.ConsoleClearFilterBtn.classList.toggle("d-none", !query);
+  }
+  const lines = Elements.DetailTerminalOutput?.querySelectorAll("div, span, p");
+  if (!lines || lines.length === 0) return;
+  if (!query) {
+    lines.forEach((el) => {
+      el.style.display = "";
+    });
+    return;
+  }
+  lines.forEach((el) => {
+    const text = el.textContent.toLowerCase();
+    el.style.display = text.includes(query) ? "" : "none";
+  });
+}
+
+function OpenQuickExecModal() {
+  if (!ActiveDetailServerId) return;
+  Elements.QuickExecCommandInput.value = "";
+  Elements.QuickExecOutputPre.textContent = "Enter command and press Run...";
+  Elements.QuickExecExitBadge.classList.add("d-none");
+  const modal = GetBootstrapModal(Elements.QuickExecModal);
+  if (modal) modal.show();
+}
+
+async function HandleQuickExecSubmit(e) {
+  e.preventDefault();
+  const cmd = Elements.QuickExecCommandInput.value.trim();
+  if (!cmd || !ActiveDetailServerId) return;
+
+  Elements.QuickExecRunBtn.disabled = true;
+  Elements.QuickExecRunBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Running...`;
+  Elements.QuickExecOutputPre.textContent = "Executing command in container...";
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/exec`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Command: cmd }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      Elements.QuickExecOutputPre.textContent = json.Data.Output || "(Command executed with no output)";
+      Elements.QuickExecExitBadge.textContent = "Exit: 0";
+      Elements.QuickExecExitBadge.className = "badge text-bg-success font-monospace small";
+      Elements.QuickExecExitBadge.classList.remove("d-none");
+    } else {
+      Elements.QuickExecOutputPre.textContent = json.Error || "Execution failed";
+      Elements.QuickExecExitBadge.textContent = "Error";
+      Elements.QuickExecExitBadge.className = "badge text-bg-danger font-monospace small";
+      Elements.QuickExecExitBadge.classList.remove("d-none");
+    }
+  } catch (err) {
+    Elements.QuickExecOutputPre.textContent = "Network error: " + err.message;
+  } finally {
+    Elements.QuickExecRunBtn.disabled = false;
+    Elements.QuickExecRunBtn.innerHTML = `<i class="bi bi-play-fill me-1"></i> Run`;
+  }
+}
+
+async function OpenDockerInspectModal() {
+  if (!ActiveDetailServerId) return;
+  Elements.InspectModalContainerIdLabel.textContent = "Fetching inspect data...";
+  Elements.InspectContainerJsonPre.textContent = "Loading...";
+  const modal = GetBootstrapModal(Elements.InspectContainerModal);
+  if (modal) modal.show();
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/inspect`);
+    const json = await res.json();
+    if (json.Success) {
+      RawInspectData = json.Data;
+      Elements.InspectModalContainerIdLabel.textContent = `Container ID: ${json.Data.Id ? json.Data.Id.slice(0, 12) : ActiveDetailServerId}`;
+      RenderInspectJson(RawInspectData);
+    } else {
+      Elements.InspectContainerJsonPre.textContent = "Error: " + (json.Error || "Failed to inspect container");
+    }
+  } catch (err) {
+    Elements.InspectContainerJsonPre.textContent = "Network error: " + err.message;
+  }
+}
+
+function RenderInspectJson(data, filter = "") {
+  if (!data) return;
+  let str = JSON.stringify(data, null, 2);
+  if (filter) {
+    const lines = str.split("\n");
+    const filtered = lines.filter((l) => l.toLowerCase().includes(filter.toLowerCase()));
+    str = filtered.length > 0 ? filtered.join("\n") : `No keys matching "${filter}"`;
+  }
+  Elements.InspectContainerJsonPre.textContent = str;
+}
+
+function ExportFullVolume() {
+  if (!ActiveDetailServerId) return;
+  ShowToast("Generating volume archive export...", "info");
+  window.location.href = `/api/servers/${ActiveDetailServerId}/export-archive`;
+}
+
+async function FetchDockerDiskUsage() {
+  try {
+    const res = await fetch("/api/system/docker/df");
+    const json = await res.json();
+    if (json.Success && json.Data) {
+      const d = json.Data;
+      if (Elements.DockerLayersSizeLabel) Elements.DockerLayersSizeLabel.textContent = `${(d.LayersSize / (1024 * 1024)).toFixed(1)} MB`;
+      if (Elements.DockerImagesCountLabel) Elements.DockerImagesCountLabel.textContent = `${d.ImagesCount} images`;
+      if (Elements.DockerContainersCountLabel) Elements.DockerContainersCountLabel.textContent = String(d.ContainersCount);
+      if (Elements.DockerVolumesCountLabel) Elements.DockerVolumesCountLabel.textContent = String(d.VolumesCount);
+      if (Elements.DockerBuildCacheSizeLabel) Elements.DockerBuildCacheSizeLabel.textContent = `${(d.BuildCacheSize / (1024 * 1024)).toFixed(1)} MB`;
+    }
+  } catch {}
+}
+
+async function TriggerDockerPrune(target) {
+  const confirmMsg = target === "all"
+    ? "Are you sure you want to run a complete system prune? This will remove all stopped containers, unused networks, dangling images, and build cache."
+    : `Are you sure you want to prune ${target}?`;
+  if (!confirm(confirmMsg)) return;
+
+  ShowToast(`Pruning ${target}...`, "info");
+  try {
+    const res = await fetch("/api/system/docker/prune", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Target: target }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      ShowToast(json.Message || "Prune completed successfully", "success");
+      FetchDockerDiskUsage();
+    } else {
+      ShowToast("Prune error: " + json.Error, "error");
+    }
+  } catch (err) {
+    ShowToast("Network error executing prune", "error");
   }
 }

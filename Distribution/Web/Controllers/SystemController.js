@@ -1,4 +1,5 @@
 import os from "node:os";
+import crypto from "node:crypto";
 import { DockerClient } from "../../Core/Docker/DockerClient.js";
 import { DatabaseManager } from "../../Core/Database/DatabaseManager.js";
 export class SystemController {
@@ -63,5 +64,76 @@ export class SystemController {
         reply.header("Content-Type", "text/csv");
         reply.header("Content-Disposition", 'attachment; filename="qir-audit-logs.csv"');
         reply.send(csvContent);
+    };
+    GetDockerDiskUsage = async (request, reply) => {
+        try {
+            const docker = this.DockerClient.GetDocker();
+            const df = await docker.df();
+            reply.send({
+                Success: true,
+                Data: {
+                    LayersSize: df.LayersSize || 0,
+                    ImagesCount: df.Images ? df.Images.length : 0,
+                    ContainersCount: df.Containers ? df.Containers.length : 0,
+                    VolumesCount: df.Volumes ? df.Volumes.length : 0,
+                    BuildCacheSize: (df.BuildCache || []).reduce((acc, item) => acc + (item.Size || 0), 0),
+                },
+            });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to fetch Docker disk usage",
+            });
+        }
+    };
+    PruneDockerSystem = async (request, reply) => {
+        try {
+            const target = request.body?.Target || "all";
+            const docker = this.DockerClient.GetDocker();
+            let reclaimed = 0;
+            let details = "";
+            if (target === "images" || target === "all") {
+                const res = await docker.pruneImages({ all: true });
+                reclaimed += res.SpaceReclaimed || 0;
+                details += `Images pruned (${res.ImagesDeleted?.length || 0} deleted). `;
+            }
+            if (target === "containers" || target === "all") {
+                const res = await docker.pruneContainers();
+                reclaimed += res.SpaceReclaimed || 0;
+                details += `Containers pruned (${res.ContainersDeleted?.length || 0} deleted). `;
+            }
+            if (target === "volumes" || target === "all") {
+                const res = await docker.pruneVolumes();
+                reclaimed += res.SpaceReclaimed || 0;
+                details += `Volumes pruned (${res.VolumesDeleted?.length || 0} deleted). `;
+            }
+            if (target === "builder" || target === "all") {
+                const res = await docker.pruneBuilder();
+                reclaimed += res.SpaceReclaimed || 0;
+                details += "Build cache pruned. ";
+            }
+            this.DatabaseManager.LogAudit({
+                Id: crypto.randomUUID(),
+                Timestamp: new Date().toISOString(),
+                Action: "DOCKER_SYSTEM_PRUNE",
+                IpAddress: request.ip || "127.0.0.1",
+                Details: `Docker system prune executed (${target}). Space reclaimed: ${(reclaimed / (1024 * 1024)).toFixed(2)} MB.`,
+            });
+            reply.send({
+                Success: true,
+                Data: {
+                    SpaceReclaimedBytes: reclaimed,
+                    Details: details.trim(),
+                },
+                Message: `Pruned successfully. Reclaimed ${(reclaimed / (1024 * 1024)).toFixed(2)} MB.`,
+            });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Docker prune failed",
+            });
+        }
     };
 }

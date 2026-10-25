@@ -127,4 +127,6 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
   );
   fastify.get<{ Params: { Id: string } }>("/servers/:Id/webhook", controller.GetWebhook);
   fastify.post<{ Params: { Id: string } }>("/servers/:Id/webhook/rotate", controller.RotateWebhook);
+  fastify.post<{ Params: { Id: string }; Body: { Command: string } }>("/servers/:Id/exec", controller.ExecuteQuickCommand);
+  fastify.get<{ Params: { Id: string } }>("/servers/:Id/export-archive", controller.ExportVolumeArchive);
 }

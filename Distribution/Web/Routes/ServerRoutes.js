@@ -46,4 +46,6 @@ export async function ServerRoutes(fastify) {
     fastify.post("/servers/:Id/schedules/:ScheduleId/run", controller.RunSchedule);
     fastify.get("/servers/:Id/webhook", controller.GetWebhook);
     fastify.post("/servers/:Id/webhook/rotate", controller.RotateWebhook);
+    fastify.post("/servers/:Id/exec", controller.ExecuteQuickCommand);
+    fastify.get("/servers/:Id/export-archive", controller.ExportVolumeArchive);
 }

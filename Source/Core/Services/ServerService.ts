@@ -83,6 +83,7 @@ export class ServerService {
       try {
         const inspect = await this.ContainerManager.InspectContainer(server.ContainerId);
         server.OomKilled = Boolean(inspect.State.OOMKilled);
+        server.HealthStatus = (inspect.State.Health?.Status as "healthy" | "unhealthy" | "starting") || "none";
         if (inspect.HostConfig?.RestartPolicy?.Name) {
           server.RestartPolicy = inspect.HostConfig.RestartPolicy.Name as
             | "unless-stopped"
@@ -267,6 +268,7 @@ export class ServerService {
     try {
       const inspect = await this.ContainerManager.InspectContainer(server.ContainerId);
       server.OomKilled = Boolean(inspect.State.OOMKilled);
+      server.HealthStatus = (inspect.State.Health?.Status as "healthy" | "unhealthy" | "starting") || "none";
       if (inspect.HostConfig?.RestartPolicy?.Name) {
         server.RestartPolicy = inspect.HostConfig.RestartPolicy.Name as
           | "unless-stopped"
@@ -729,6 +731,7 @@ export class ServerService {
         const inspect = await this.ContainerManager.InspectContainer(server.ContainerId);
         const previousStatus = server.Status;
         server.OomKilled = Boolean(inspect.State.OOMKilled);
+        server.HealthStatus = (inspect.State.Health?.Status as "healthy" | "unhealthy" | "starting") || "none";
 
         if (inspect.State.Running) {
           server.Status = "Running";
@@ -796,5 +799,16 @@ export class ServerService {
       `Test alert triggered from QiR Control Panel for server "${server.Name}". Webhook communication is fully operational.`,
       "info"
     );
+  }
+
+  public async ExportVolumeArchive(serverId: string): Promise<{ FilePath: string; FileName: string }> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+    const safeName = server.Name.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const backup = await this.BackupService.CreateBackup(serverId, `${safeName}_export`);
+    const filePath = this.BackupService.GetBackupFilePath(serverId, backup.FileName);
+    return { FilePath: filePath, FileName: backup.FileName };
   }
 }

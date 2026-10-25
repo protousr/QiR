@@ -70,6 +70,7 @@ export class ServerService {
             try {
                 const inspect = await this.ContainerManager.InspectContainer(server.ContainerId);
                 server.OomKilled = Boolean(inspect.State.OOMKilled);
+                server.HealthStatus = inspect.State.Health?.Status || "none";
                 if (inspect.HostConfig?.RestartPolicy?.Name) {
                     server.RestartPolicy = inspect.HostConfig.RestartPolicy.Name;
                 }
@@ -233,6 +234,7 @@ export class ServerService {
         try {
             const inspect = await this.ContainerManager.InspectContainer(server.ContainerId);
             server.OomKilled = Boolean(inspect.State.OOMKilled);
+            server.HealthStatus = inspect.State.Health?.Status || "none";
             if (inspect.HostConfig?.RestartPolicy?.Name) {
                 server.RestartPolicy = inspect.HostConfig.RestartPolicy.Name;
             }
@@ -586,6 +588,7 @@ export class ServerService {
                 const inspect = await this.ContainerManager.InspectContainer(server.ContainerId);
                 const previousStatus = server.Status;
                 server.OomKilled = Boolean(inspect.State.OOMKilled);
+                server.HealthStatus = inspect.State.Health?.Status || "none";
                 if (inspect.State.Running) {
                     server.Status = "Running";
                 }
@@ -638,5 +641,15 @@ export class ServerService {
             throw new Error("No alert webhook configured for this server");
         }
         await this.DispatchAlertWebhook(server, "Test Notification", `Test alert triggered from QiR Control Panel for server "${server.Name}". Webhook communication is fully operational.`, "info");
+    }
+    async ExportVolumeArchive(serverId) {
+        const server = this.Servers.get(serverId);
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
+        }
+        const safeName = server.Name.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const backup = await this.BackupService.CreateBackup(serverId, `${safeName}_export`);
+        const filePath = this.BackupService.GetBackupFilePath(serverId, backup.FileName);
+        return { FilePath: filePath, FileName: backup.FileName };
     }
 }

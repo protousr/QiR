@@ -39,6 +39,7 @@ export interface IServerInstance {
   AutoRestart: boolean;
   RestartPolicy?: "unless-stopped" | "always" | "on-failure" | "no";
   OomKilled?: boolean;
+  HealthStatus?: "healthy" | "unhealthy" | "starting" | "none";
   OwnerId?: string;
   OwnerUsername?: string;
   WebhookToken?: string;

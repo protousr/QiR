@@ -535,4 +535,36 @@ export class ServerController {
             reply.status(401).send({ Success: false, Error: err instanceof Error ? err.message : "Webhook trigger failed" });
         }
     };
+    ExecuteQuickCommand = async (request, reply) => {
+        try {
+            const command = request.body?.Command;
+            if (!command || typeof command !== "string") {
+                reply.status(400).send({ Success: false, Error: "Command string is required" });
+                return;
+            }
+            const output = await this.ServerService.SendCommand(request.params.Id, command);
+            reply.send({ Success: true, Data: { Output: output } });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Command execution failed",
+            });
+        }
+    };
+    ExportVolumeArchive = async (request, reply) => {
+        try {
+            const archive = await this.ServerService.ExportVolumeArchive(request.params.Id);
+            reply.header("Content-Disposition", `attachment; filename="${archive.FileName}"`);
+            reply.header("Content-Type", "application/gzip");
+            const stream = fs.createReadStream(archive.FilePath);
+            reply.send(stream);
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to export volume",
+            });
+        }
+    };
 }
