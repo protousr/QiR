@@ -219,7 +219,17 @@
 
           <div class="card TableCard shadow-sm">
             <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2">
-              <span class="fw-medium small">Active Docker Workloads</span>
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-medium small">Active Docker Workloads</span>
+                <div class="d-flex align-items-center gap-1 ms-3">
+                  <button class="btn btn-xs btn-outline-success" id="BulkStartBtn" title="Start all stopped containers">
+                    <i class="bi bi-play-fill me-1"></i> Start All
+                  </button>
+                  <button class="btn btn-xs btn-outline-warning" id="BulkStopBtn" title="Stop all running containers">
+                    <i class="bi bi-stop-fill me-1"></i> Stop All
+                  </button>
+                </div>
+              </div>
               <div class="input-group input-group-sm" style="max-width: 240px;">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
                 <input type="text" class="form-control" id="SearchServersInput" placeholder="Filter instances...">
@@ -281,6 +291,9 @@
               <button class="btn btn-sm btn-outline-danger" id="DetailKillBtn" title="Force Kill Container">
                 <i class="bi bi-lightning-fill me-1"></i> Kill
               </button>
+              <button class="btn btn-sm btn-outline-secondary" id="DetailCloneBtn" title="Clone Instance">
+                <i class="bi bi-copy me-1"></i> Clone
+              </button>
               <button class="btn btn-sm btn-danger" id="DetailDeleteBtn" title="Delete Instance">
                 <i class="bi bi-trash me-1"></i> Delete
               </button>
@@ -311,6 +324,11 @@
             <li class="nav-item">
               <a class="nav-link" href="#" data-tab="Networking">
                 <i class="bi bi-globe me-1"></i> Domains & Caddy
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-tab="Schedules">
+                <i class="bi bi-calendar2-range me-1"></i> Schedules & Cron
               </a>
             </li>
             <li class="nav-item">
@@ -357,13 +375,21 @@
                   </button>
                 </div>
               </div>
-              <div class="card-body p-0 d-flex flex-column" style="height: 520px; background-color: #07080a;">
-                <div class="flex-grow-1 p-3 font-monospace overflow-y-auto TerminalViewport" id="DetailTerminalOutput"></div>
-                <form id="DetailTerminalForm" class="d-flex border-top p-2 ConsoleInputArea">
+              <div class="card-body p-0 d-flex flex-column" style="height: 480px; background-color: #07080a;">
+                <div class="flex-grow-1 p-3 font-monospace overflow-y-auto TerminalViewport" id="DetailTerminalOutput" style="min-height: 0;"></div>
+                <form id="DetailTerminalForm" class="d-flex border-top p-2 ConsoleInputArea flex-shrink-0">
                   <span class="input-group-text bg-transparent border-0 font-monospace fw-medium text-primary">&gt;</span>
                   <input type="text" class="form-control form-control-sm font-monospace border-0 bg-transparent text-body" id="DetailTerminalInput" placeholder="Enter command to execute inside container..." autocomplete="off">
                   <button type="submit" class="btn btn-sm btn-primary px-3 ms-2">Send</button>
                 </form>
+                <div class="d-flex align-items-center gap-2 px-3 py-1 border-top font-monospace small flex-shrink-0" style="background-color: #0b0d10;">
+                  <span class="text-body-secondary" style="font-size: 0.72rem;">QUICK RUN:</span>
+                  <button type="button" class="btn btn-xs btn-outline-secondary QuickCmdBtn" data-cmd="ls -la">ls -la</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary QuickCmdBtn" data-cmd="df -h">df -h</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary QuickCmdBtn" data-cmd="free -m">free -m</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary QuickCmdBtn" data-cmd="ps aux">ps aux</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary QuickCmdBtn" data-cmd="echo $PORT; env">env</button>
+                </div>
               </div>
             </div>
           </div>
@@ -502,11 +528,37 @@
               </div>
 
               <div class="col-lg-4">
-                <div class="card TableCard shadow-sm">
-                  <div class="card-header TableCardHeader py-2 small fw-medium">
-                    Port Forwarding
+                <div class="card TableCard shadow-sm mb-3">
+                  <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2 small fw-medium">
+                    <span><i class="bi bi-diagram-2 me-1"></i> Port Allocations</span>
+                    <button class="btn btn-xs btn-primary" id="OpenAddPortModalBtn">
+                      <i class="bi bi-plus-lg me-1"></i> Add Port
+                    </button>
                   </div>
                   <div class="card-body p-3" id="DetailPortsContainer"></div>
+                </div>
+
+                <div class="card TableCard shadow-sm">
+                  <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2 small fw-medium">
+                    <span><i class="bi bi-broadcast me-1"></i> CI/CD Deploy Webhook</span>
+                    <button class="btn btn-xs btn-outline-secondary" id="DetailRotateWebhookBtn" title="Rotate Webhook Secret">
+                      <i class="bi bi-arrow-repeat"></i>
+                    </button>
+                  </div>
+                  <div class="card-body p-3 small">
+                    <div class="text-body-secondary mb-2" style="font-size: 0.8rem;">
+                      Trigger automated restarts or updates on GitHub/GitLab push:
+                    </div>
+                    <div class="input-group input-group-sm mb-2">
+                      <input type="text" class="form-control font-monospace" id="DetailWebhookUrlInput" readonly>
+                      <button class="btn btn-outline-secondary" id="DetailCopyWebhookBtn" type="button" title="Copy URL">
+                        <i class="bi bi-clipboard"></i>
+                      </button>
+                    </div>
+                    <div class="text-body-secondary font-monospace" style="font-size: 0.72rem;">
+                      POST /api/webhooks/:id/:token
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -526,9 +578,15 @@
                     <p class="small text-body-secondary mb-3">
                       Enter your desired public domain or subdomain below to instantly generate a ready-to-paste Caddy configuration with automatic SSL/TLS.
                     </p>
-                    <div class="mb-3">
-                      <label for="DetailSubdomainInput" class="form-label small fw-medium">Domain / Subdomain</label>
-                      <input type="text" class="form-control form-control-sm font-monospace" id="DetailSubdomainInput" placeholder="e.g. app.yourdomain.com">
+                    <div class="row g-2 mb-3">
+                      <div class="col-sm-8">
+                        <label for="DetailSubdomainInput" class="form-label small fw-medium">Domain / Subdomain</label>
+                        <input type="text" class="form-control form-control-sm font-monospace" id="DetailSubdomainInput" placeholder="e.g. app.yourdomain.com">
+                      </div>
+                      <div class="col-sm-4">
+                        <label for="DetailCaddyTargetPortSelect" class="form-label small fw-medium">Route to Port</label>
+                        <select class="form-select form-select-sm font-monospace" id="DetailCaddyTargetPortSelect"></select>
+                      </div>
                     </div>
                     <label class="form-label small fw-medium">Generated Caddyfile Block</label>
                     <pre class="m-0 p-3 rounded font-monospace small" id="DetailCaddySnippetPre" style="background-color: #07080a; color: #a5b4fc; border: 1px solid var(--qir-border);"></pre>
@@ -545,6 +603,44 @@
                     <div class="small text-body-secondary">Loading network endpoints...</div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="DetailTabSchedules" class="d-none">
+            <div class="card TableCard shadow-sm">
+              <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2">
+                <div>
+                  <span class="fw-medium small me-2">Automated Tasks &amp; Cron Schedules</span>
+                  <span class="badge text-bg-dark border font-monospace" id="DetailSchedulesCountBadge">0 tasks</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-sm btn-primary" id="OpenCreateScheduleModalBtn">
+                    <i class="bi bi-plus-lg me-1"></i> Create Task
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary" id="DetailRefreshSchedulesBtn">
+                    <i class="bi bi-arrow-clockwise"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th scope="col" class="ps-3 py-2">TASK NAME</th>
+                      <th scope="col" class="py-2">ACTION TYPE</th>
+                      <th scope="col" class="py-2">INTERVAL</th>
+                      <th scope="col" class="py-2">NEXT RUN</th>
+                      <th scope="col" class="py-2">LAST RUN</th>
+                      <th scope="col" class="py-2 text-end pe-3">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody id="DetailSchedulesTableBody">
+                    <tr>
+                      <td colspan="6" class="text-center py-4 text-body-secondary">Loading automated tasks...</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -736,20 +832,21 @@
               <div class="card-body" id="DeployDynamicFields"></div>
             </div>
 
-            <div class="row g-3 mb-2">
-              <div class="col-md-6">
-                <label for="DeployHostPortInput" class="form-label small fw-medium">Host Exposed Port</label>
-                <input type="number" class="form-control" id="DeployHostPortInput" placeholder="Default template port">
-                <div class="form-text">Leave blank to use template default port.</div>
+            <div class="card mb-3 InnerFormCard">
+              <div class="card-header py-2 small fw-medium d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-diagram-2 me-1"></i> Port Mappings</span>
+                <button type="button" class="btn btn-xs btn-outline-secondary" id="DeployAddPortRowBtn">
+                  <i class="bi bi-plus-lg me-1"></i> Add Port
+                </button>
               </div>
-              <div class="col-md-6 d-flex align-items-center">
-                <div class="form-check mt-3">
-                  <input class="form-check-input" type="checkbox" id="DeployAutoRestartInput" checked>
-                  <label class="form-check-label small" for="DeployAutoRestartInput">
-                    Always auto-restart on container crash or host reboot
-                  </label>
-                </div>
-              </div>
+              <div class="card-body p-2" id="DeployPortsListContainer"></div>
+            </div>
+
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="DeployAutoRestartInput" checked>
+              <label class="form-check-label small" for="DeployAutoRestartInput">
+                Always auto-restart on container crash or host reboot
+              </label>
             </div>
           </div>
           <div class="modal-footer">
@@ -956,6 +1053,130 @@
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
             <button type="submit" class="btn btn-primary" id="CreateBackupSubmitBtn">
               <i class="bi bi-box-arrow-down me-1"></i> Create Snapshot
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="AddPortModal" tabindex="-1" aria-labelledby="AddPortModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-medium" id="AddPortModalLabel">
+            <i class="bi bi-diagram-2 me-1 text-primary"></i> Allocate Port Mapping
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="AddPortForm">
+          <div class="modal-body">
+            <div class="alert alert-secondary py-2 px-3 small mb-3">
+              Adding a port updates container bindings while preserving all files, environment variables, and volumes.
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-sm-5">
+                <label for="AddHostPortInput" class="form-label small fw-medium">Host Port *</label>
+                <input type="number" class="form-control font-monospace" id="AddHostPortInput" required placeholder="e.g. 8080">
+              </div>
+              <div class="col-sm-4">
+                <label for="AddContainerPortInput" class="form-label small fw-medium">Container Port *</label>
+                <input type="number" class="form-control font-monospace" id="AddContainerPortInput" required placeholder="e.g. 80">
+              </div>
+              <div class="col-sm-3">
+                <label for="AddPortProtocolSelect" class="form-label small fw-medium">Protocol</label>
+                <select class="form-select font-monospace" id="AddPortProtocolSelect">
+                  <option value="tcp">TCP</option>
+                  <option value="udp">UDP</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="AddPortSubmitBtn">
+              <i class="bi bi-check2 me-1"></i> Allocate Port
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="CreateScheduleModal" tabindex="-1" aria-labelledby="CreateScheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-medium" id="CreateScheduleModalLabel">
+            <i class="bi bi-calendar2-range me-1 text-primary"></i> Create Automated Task
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="CreateScheduleForm">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="ScheduleNameInput" class="form-label small fw-medium">Task Identifier *</label>
+              <input type="text" class="form-control" id="ScheduleNameInput" required placeholder="e.g. Nightly Volume Snapshot">
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-sm-6">
+                <label for="ScheduleTaskTypeSelect" class="form-label small fw-medium">Action *</label>
+                <select class="form-select" id="ScheduleTaskTypeSelect" required>
+                  <option value="Backup">Volume Backup Snapshot</option>
+                  <option value="Restart">Restart Container</option>
+                  <option value="Command">Execute Shell Command</option>
+                </select>
+              </div>
+              <div class="col-sm-6">
+                <label for="ScheduleIntervalSelect" class="form-label small fw-medium">Recurrence *</label>
+                <select class="form-select" id="ScheduleIntervalSelect" required>
+                  <option value="60">Every 1 Hour</option>
+                  <option value="360">Every 6 Hours</option>
+                  <option value="720">Every 12 Hours</option>
+                  <option value="1440" selected>Daily (24 Hours)</option>
+                  <option value="10080">Weekly (7 Days)</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-3 d-none" id="ScheduleCommandContainer">
+              <label for="ScheduleCommandInput" class="form-label small fw-medium">Command to Execute</label>
+              <input type="text" class="form-control font-monospace" id="ScheduleCommandInput" placeholder="e.g. npm run cleanup or python backup.py">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="CreateScheduleSubmitBtn">
+              <i class="bi bi-check2 me-1"></i> Save Task
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="CloneServerModal" tabindex="-1" aria-labelledby="CloneServerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-medium" id="CloneServerModalLabel">
+            <i class="bi bi-copy me-1 text-primary"></i> Clone Container Instance
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="CloneServerForm">
+          <div class="modal-body">
+            <p class="small text-body-secondary mb-3">
+              This creates an exact duplicate of the container, including all volume files, configurations, and environment variables with automatically re-assigned non-conflicting host ports.
+            </p>
+            <div class="mb-3">
+              <label for="CloneNameInput" class="form-label small fw-medium">New Instance Name *</label>
+              <input type="text" class="form-control" id="CloneNameInput" required placeholder="e.g. prod-api-staging">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="CloneServerSubmitBtn">
+              <i class="bi bi-copy me-1"></i> Duplicate Instance
             </button>
           </div>
         </form>

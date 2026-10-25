@@ -1,6 +1,7 @@
 import type Docker from "dockerode";
 import { DockerClient } from "./DockerClient.js";
 import type { IContainerBuildConfig } from "../Types/TemplateTypes.js";
+import type { IPortMapping } from "../Types/ServerTypes.js";
 
 export class ContainerManager {
   private readonly Client: Docker;
@@ -90,6 +91,56 @@ export class ContainerManager {
       Memory: memoryBytes,
       NanoCPUs: nanoCpus,
     });
+  }
+
+  public async RecreateContainerWithNewPorts(
+    oldContainerId: string,
+    newPorts: IPortMapping[]
+  ): Promise<string> {
+    const inspect = await this.InspectContainer(oldContainerId);
+    const wasRunning = Boolean(inspect.State.Running);
+    const containerName = inspect.Name.replace(/^\//, "");
+
+    if (wasRunning) {
+      await this.StopContainer(oldContainerId, 5);
+    }
+    await this.RemoveContainer(oldContainerId, true);
+
+    const exposedPorts: Record<string, {}> = {};
+    const portBindings: Record<string, Array<{ HostPort: string }>> = {};
+    for (const port of newPorts) {
+      const portKey = `${port.ContainerPort}/${port.Protocol || "tcp"}`;
+      exposedPorts[portKey] = {};
+      portBindings[portKey] = [{ HostPort: String(port.HostPort) }];
+    }
+
+    const newContainer = await this.Client.createContainer({
+      name: containerName,
+      Image: inspect.Config.Image,
+      Cmd: inspect.Config.Cmd,
+      Env: inspect.Config.Env,
+      ExposedPorts: exposedPorts,
+      HostConfig: {
+        PortBindings: portBindings,
+        Binds: inspect.HostConfig.Binds,
+        Memory: inspect.HostConfig.Memory,
+        CpuShares: inspect.HostConfig.CpuShares,
+        NanoCpus: inspect.HostConfig.NanoCpus,
+        RestartPolicy: inspect.HostConfig.RestartPolicy,
+      },
+      AttachStdin: inspect.Config.AttachStdin,
+      AttachStdout: inspect.Config.AttachStdout,
+      AttachStderr: inspect.Config.AttachStderr,
+      OpenStdin: inspect.Config.OpenStdin,
+      StdinOnce: inspect.Config.StdinOnce,
+      Tty: inspect.Config.Tty,
+    });
+
+    if (wasRunning) {
+      await newContainer.start();
+    }
+
+    return newContainer.id;
   }
 
   public async InspectContainer(containerId: string): Promise<Docker.ContainerInspectInfo> {

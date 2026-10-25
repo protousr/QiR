@@ -1,6 +1,7 @@
 import { BuildApp } from "./App.js";
 import { ConfigInstance } from "./Config/EnvironmentConfig.js";
 import { ServerService } from "./Core/Services/ServerService.js";
+import { ScheduleService } from "./Core/Services/ScheduleService.js";
 import { DockerClient } from "./Core/Docker/DockerClient.js";
 
 async function Start(): Promise<void> {
@@ -15,6 +16,8 @@ async function Start(): Promise<void> {
 
   const serverService = ServerService.GetInstance();
   await serverService.Initialize();
+
+  const scheduleService = ScheduleService.GetInstance();
 
   const app = await BuildApp();
 
@@ -34,6 +37,7 @@ async function Start(): Promise<void> {
   for (const signal of Signals) {
     process.on(signal, async () => {
       process.stdout.write(`\nReceived ${signal}, shutting down gracefully...\n`);
+      scheduleService.StopWorker();
       await app.close();
       process.exit(0);
     });

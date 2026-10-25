@@ -74,4 +74,33 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
     controller.DownloadBackup
   );
   fastify.get<{ Params: { Id: string } }>("/servers/:Id/audit", controller.GetServerAuditLogs);
+  fastify.post("/servers/bulk/start", controller.BulkStart);
+  fastify.post("/servers/bulk/stop", controller.BulkStop);
+  fastify.post<{
+    Params: { Id: string };
+    Body: { HostPort: number; ContainerPort: number; Protocol: "tcp" | "udp" };
+  }>("/servers/:Id/ports", controller.AddPort);
+  fastify.delete<{ Params: { Id: string; ContainerPort: string; Protocol: string } }>(
+    "/servers/:Id/ports/:ContainerPort/:Protocol",
+    controller.RemovePort
+  );
+  fastify.post<{
+    Params: { Id: string };
+    Body: { NewName: string };
+  }>("/servers/:Id/clone", controller.CloneServer);
+  fastify.get<{ Params: { Id: string } }>("/servers/:Id/schedules", controller.GetSchedules);
+  fastify.post<{
+    Params: { Id: string };
+    Body: { Name: string; TaskType: "Backup" | "Restart" | "Command"; IntervalMinutes: number; Command?: string };
+  }>("/servers/:Id/schedules", controller.CreateSchedule);
+  fastify.delete<{ Params: { Id: string; ScheduleId: string } }>(
+    "/servers/:Id/schedules/:ScheduleId",
+    controller.DeleteSchedule
+  );
+  fastify.post<{ Params: { Id: string; ScheduleId: string } }>(
+    "/servers/:Id/schedules/:ScheduleId/run",
+    controller.RunSchedule
+  );
+  fastify.get<{ Params: { Id: string } }>("/servers/:Id/webhook", controller.GetWebhook);
+  fastify.post<{ Params: { Id: string } }>("/servers/:Id/webhook/rotate", controller.RotateWebhook);
 }

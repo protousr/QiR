@@ -10,6 +10,8 @@ let StatsSocket = null;
 let CurrentAuthToken = null;
 let CurrentUser = null;
 let PollingIntervals = [];
+let TerminalHistory = [];
+let HistoryPointer = -1;
 
 const Elements = {
   AuthOverlay: document.getElementById("AuthOverlay"),
@@ -73,6 +75,9 @@ const Elements = {
   DetailRestartBtn: document.getElementById("DetailRestartBtn"),
   DetailKillBtn: document.getElementById("DetailKillBtn"),
   DetailDeleteBtn: document.getElementById("DetailDeleteBtn"),
+  DetailCloneBtn: document.getElementById("DetailCloneBtn"),
+  BulkStartBtn: document.getElementById("BulkStartBtn"),
+  BulkStopBtn: document.getElementById("BulkStopBtn"),
   ServerDetailTabs: document.getElementById("ServerDetailTabs"),
 
   DetailTabConsole: document.getElementById("DetailTabConsole"),
@@ -111,9 +116,21 @@ const Elements = {
 
   DetailTabNetworking: document.getElementById("DetailTabNetworking"),
   DetailSubdomainInput: document.getElementById("DetailSubdomainInput"),
+  DetailCaddyTargetPortSelect: document.getElementById("DetailCaddyTargetPortSelect"),
   DetailCaddySnippetPre: document.getElementById("DetailCaddySnippetPre"),
   DetailCopyCaddyBtn: document.getElementById("DetailCopyCaddyBtn"),
   DetailNetworkInfoContainer: document.getElementById("DetailNetworkInfoContainer"),
+
+  DetailTabSchedules: document.getElementById("DetailTabSchedules"),
+  DetailSchedulesCountBadge: document.getElementById("DetailSchedulesCountBadge"),
+  DetailRefreshSchedulesBtn: document.getElementById("DetailRefreshSchedulesBtn"),
+  OpenCreateScheduleModalBtn: document.getElementById("OpenCreateScheduleModalBtn"),
+  DetailSchedulesTableBody: document.getElementById("DetailSchedulesTableBody"),
+
+  DetailWebhookUrlInput: document.getElementById("DetailWebhookUrlInput"),
+  DetailCopyWebhookBtn: document.getElementById("DetailCopyWebhookBtn"),
+  DetailRotateWebhookBtn: document.getElementById("DetailRotateWebhookBtn"),
+  OpenAddPortModalBtn: document.getElementById("OpenAddPortModalBtn"),
 
   DetailTabActivity: document.getElementById("DetailTabActivity"),
   DetailRefreshAuditBtn: document.getElementById("DetailRefreshAuditBtn"),
@@ -173,8 +190,27 @@ const Elements = {
   DeployTemplateSelect: document.getElementById("DeployTemplateSelect"),
   DeployTemplateDescAlert: document.getElementById("DeployTemplateDescAlert"),
   DeployDynamicFields: document.getElementById("DeployDynamicFields"),
-  DeployHostPortInput: document.getElementById("DeployHostPortInput"),
+  DeployPortsListContainer: document.getElementById("DeployPortsListContainer"),
+  DeployAddPortRowBtn: document.getElementById("DeployAddPortRowBtn"),
   DeployAutoRestartInput: document.getElementById("DeployAutoRestartInput"),
+
+  AddPortModal: document.getElementById("AddPortModal"),
+  AddPortForm: document.getElementById("AddPortForm"),
+  AddHostPortInput: document.getElementById("AddHostPortInput"),
+  AddContainerPortInput: document.getElementById("AddContainerPortInput"),
+  AddPortProtocolSelect: document.getElementById("AddPortProtocolSelect"),
+
+  CreateScheduleModal: document.getElementById("CreateScheduleModal"),
+  CreateScheduleForm: document.getElementById("CreateScheduleForm"),
+  ScheduleNameInput: document.getElementById("ScheduleNameInput"),
+  ScheduleTaskTypeSelect: document.getElementById("ScheduleTaskTypeSelect"),
+  ScheduleIntervalSelect: document.getElementById("ScheduleIntervalSelect"),
+  ScheduleCommandContainer: document.getElementById("ScheduleCommandContainer"),
+  ScheduleCommandInput: document.getElementById("ScheduleCommandInput"),
+
+  CloneServerModal: document.getElementById("CloneServerModal"),
+  CloneServerForm: document.getElementById("CloneServerForm"),
+  CloneNameInput: document.getElementById("CloneNameInput"),
 
   TemplatesGrid: document.getElementById("TemplatesGrid"),
   HostInfoTableBody: document.getElementById("HostInfoTableBody"),
@@ -519,6 +555,7 @@ function SwitchDetailTab(tabName) {
   Elements.DetailTabBackups.classList.toggle("d-none", tabName !== "Backups");
   Elements.DetailTabConfig.classList.toggle("d-none", tabName !== "Config");
   Elements.DetailTabNetworking.classList.toggle("d-none", tabName !== "Networking");
+  Elements.DetailTabSchedules.classList.toggle("d-none", tabName !== "Schedules");
   Elements.DetailTabActivity.classList.toggle("d-none", tabName !== "Activity");
   Elements.DetailTabDocker.classList.toggle("d-none", tabName !== "Docker");
 
@@ -532,6 +569,8 @@ function SwitchDetailTab(tabName) {
     RenderServerConfigTab();
   } else if (tabName === "Networking") {
     RenderServerNetworkingTab();
+  } else if (tabName === "Schedules") {
+    FetchServerSchedules(ActiveDetailServerId);
   } else if (tabName === "Activity") {
     FetchServerAuditLogs(ActiveDetailServerId);
   }
@@ -612,6 +651,194 @@ function SetupEventListeners() {
 
   Elements.OpenCreateUserModalBtn.addEventListener("click", OpenCreateUserModal);
   Elements.CreateUserForm.addEventListener("submit", HandleCreateUserSubmit);
+
+  Elements.BulkStartBtn.addEventListener("click", async () => {
+    Elements.BulkStartBtn.disabled = true;
+    try {
+      await fetch("/api/servers/bulk/start", { method: "POST" });
+      await FetchServers();
+    } finally {
+      Elements.BulkStartBtn.disabled = false;
+    }
+  });
+
+  Elements.BulkStopBtn.addEventListener("click", async () => {
+    Elements.BulkStopBtn.disabled = true;
+    try {
+      await fetch("/api/servers/bulk/stop", { method: "POST" });
+      await FetchServers();
+    } finally {
+      Elements.BulkStopBtn.disabled = false;
+    }
+  });
+
+  Elements.DetailCloneBtn.addEventListener("click", () => {
+    const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+    if (!server) return;
+    Elements.CloneNameInput.value = `${server.Name}-clone`;
+    const modal = GetBootstrapModal(Elements.CloneServerModal);
+    if (modal) modal.show();
+  });
+
+  Elements.CloneServerForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const newName = Elements.CloneNameInput.value.trim();
+    if (!newName) return;
+    try {
+      const res = await fetch(`/api/servers/${ActiveDetailServerId}/clone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ NewName: newName }),
+      });
+      const json = await res.json();
+      if (json.Success) {
+        const modal = GetBootstrapModal(Elements.CloneServerModal);
+        if (modal) modal.hide();
+        await FetchServers();
+        OpenServerDetail(json.Data.Id);
+      } else {
+        alert("Failed to clone server: " + json.Error);
+      }
+    } catch {
+      alert("Network error cloning server");
+    }
+  });
+
+  Elements.OpenAddPortModalBtn.addEventListener("click", () => {
+    Elements.AddPortForm.reset();
+    const modal = GetBootstrapModal(Elements.AddPortModal);
+    if (modal) modal.show();
+  });
+
+  Elements.AddPortForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const hostPort = Number(Elements.AddHostPortInput.value);
+    const containerPort = Number(Elements.AddContainerPortInput.value);
+    const protocol = Elements.AddPortProtocolSelect.value;
+    try {
+      const res = await fetch(`/api/servers/${ActiveDetailServerId}/ports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ HostPort: hostPort, ContainerPort: containerPort, Protocol: protocol }),
+      });
+      const json = await res.json();
+      if (json.Success) {
+        const modal = GetBootstrapModal(Elements.AddPortModal);
+        if (modal) modal.hide();
+        await FetchServers();
+        RenderServerConfigTab();
+      } else {
+        alert("Failed to add port: " + json.Error);
+      }
+    } catch {
+      alert("Network error adding port");
+    }
+  });
+
+  Elements.DetailRotateWebhookBtn.addEventListener("click", async () => {
+    if (!confirm("Rotate deploy webhook secret? Existing URLs in CI/CD pipelines will stop working.")) return;
+    try {
+      const res = await fetch(`/api/servers/${ActiveDetailServerId}/webhook/rotate`, { method: "POST" });
+      const json = await res.json();
+      if (json.Success) {
+        Elements.DetailWebhookUrlInput.value = `${window.location.origin}${json.Data.WebhookUrl}`;
+      }
+    } catch {}
+  });
+
+  Elements.DetailCopyWebhookBtn.addEventListener("click", () => {
+    navigator.clipboard.writeText(Elements.DetailWebhookUrlInput.value);
+    Elements.DetailCopyWebhookBtn.innerHTML = `<i class="bi bi-check2"></i>`;
+    setTimeout(() => {
+      Elements.DetailCopyWebhookBtn.innerHTML = `<i class="bi bi-clipboard"></i>`;
+    }, 2000);
+  });
+
+  Elements.DetailCaddyTargetPortSelect.addEventListener("change", UpdateCaddySnippet);
+
+  Elements.OpenCreateScheduleModalBtn.addEventListener("click", () => {
+    Elements.CreateScheduleForm.reset();
+    Elements.ScheduleCommandContainer.classList.add("d-none");
+    const modal = GetBootstrapModal(Elements.CreateScheduleModal);
+    if (modal) modal.show();
+  });
+
+  Elements.ScheduleTaskTypeSelect.addEventListener("change", () => {
+    Elements.ScheduleCommandContainer.classList.toggle(
+      "d-none",
+      Elements.ScheduleTaskTypeSelect.value !== "Command"
+    );
+  });
+
+  Elements.DetailRefreshSchedulesBtn.addEventListener("click", () => {
+    FetchServerSchedules(ActiveDetailServerId);
+  });
+
+  Elements.CreateScheduleForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = Elements.ScheduleNameInput.value.trim();
+    const taskType = Elements.ScheduleTaskTypeSelect.value;
+    const interval = Number(Elements.ScheduleIntervalSelect.value);
+    const cmd = Elements.ScheduleCommandInput.value.trim();
+    try {
+      const res = await fetch(`/api/servers/${ActiveDetailServerId}/schedules`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          Name: name,
+          TaskType: taskType,
+          IntervalMinutes: interval,
+          Command: taskType === "Command" ? cmd : undefined,
+        }),
+      });
+      const json = await res.json();
+      if (json.Success) {
+        const modal = GetBootstrapModal(Elements.CreateScheduleModal);
+        if (modal) modal.hide();
+        FetchServerSchedules(ActiveDetailServerId);
+      } else {
+        alert("Failed to create task: " + json.Error);
+      }
+    } catch {
+      alert("Network error creating task");
+    }
+  });
+
+  Elements.DeployAddPortRowBtn.addEventListener("click", () => {
+    AddDeployPortRow("", "", "tcp");
+  });
+
+  document.querySelectorAll(".QuickCmdBtn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cmd = btn.dataset.cmd;
+      if (cmd && ConsoleSocket && ConsoleSocket.readyState === WebSocket.OPEN) {
+        ConsoleSocket.send(JSON.stringify({ Command: cmd }));
+      }
+    });
+  });
+
+  Elements.DetailTerminalInput.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp") {
+      if (TerminalHistory.length === 0) return;
+      if (HistoryPointer === -1) {
+        HistoryPointer = TerminalHistory.length - 1;
+      } else if (HistoryPointer > 0) {
+        HistoryPointer--;
+      }
+      Elements.DetailTerminalInput.value = TerminalHistory[HistoryPointer];
+      e.preventDefault();
+    } else if (e.key === "ArrowDown") {
+      if (HistoryPointer === -1) return;
+      if (HistoryPointer < TerminalHistory.length - 1) {
+        HistoryPointer++;
+        Elements.DetailTerminalInput.value = TerminalHistory[HistoryPointer];
+      } else {
+        HistoryPointer = -1;
+        Elements.DetailTerminalInput.value = "";
+      }
+      e.preventDefault();
+    }
+  });
 }
 
 async function FetchSystemStatus() {
@@ -691,6 +918,25 @@ function PopulateDeployTemplateSelect() {
   HandleTemplateSelectionChange();
 }
 
+function AddDeployPortRow(hostPort = "", containerPort = "", protocol = "tcp") {
+  const row = document.createElement("div");
+  row.className = "d-flex align-items-center gap-2 mb-2 DeployPortRow";
+  row.innerHTML = `
+    <input type="number" class="form-control form-control-sm font-monospace DeployRowHostPort" placeholder="Host Port" value="${hostPort}" required style="width: 40%;">
+    <span class="small text-body-secondary">&rarr;</span>
+    <input type="number" class="form-control form-control-sm font-monospace DeployRowContainerPort" placeholder="Container Port" value="${containerPort}" required style="width: 35%;">
+    <select class="form-select form-select-sm font-monospace DeployRowProtocol" style="width: 25%;">
+      <option value="tcp" ${protocol === "tcp" ? "selected" : ""}>TCP</option>
+      <option value="udp" ${protocol === "udp" ? "selected" : ""}>UDP</option>
+    </select>
+    <button type="button" class="btn btn-xs btn-outline-danger RemoveDeployPortBtn">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  `;
+  row.querySelector(".RemoveDeployPortBtn").addEventListener("click", () => row.remove());
+  Elements.DeployPortsListContainer.appendChild(row);
+}
+
 function HandleTemplateSelectionChange() {
   const selectedId = Elements.DeployTemplateSelect.value;
   const template = Templates.find((t) => t.Id === selectedId);
@@ -699,10 +945,13 @@ function HandleTemplateSelectionChange() {
   Elements.DeployTemplateDescAlert.classList.remove("d-none");
   Elements.DeployTemplateDescAlert.textContent = template.Description;
 
+  Elements.DeployPortsListContainer.innerHTML = "";
   if (template.DefaultPorts && template.DefaultPorts.length > 0) {
-    Elements.DeployHostPortInput.placeholder = `Default: ${template.DefaultPorts[0].HostPort}`;
+    for (const p of template.DefaultPorts) {
+      AddDeployPortRow(p.HostPort, p.ContainerPort, p.Protocol || "tcp");
+    }
   } else {
-    Elements.DeployHostPortInput.placeholder = "None required";
+    AddDeployPortRow(3000, 3000, "tcp");
   }
 
   Elements.DeployDynamicFields.innerHTML = "";
@@ -1061,6 +1310,8 @@ function HandleTerminalCommandSubmit(e) {
   if (!cmd || !ConsoleSocket || ConsoleSocket.readyState !== WebSocket.OPEN) return;
 
   ConsoleSocket.send(JSON.stringify({ Command: cmd }));
+  TerminalHistory.push(cmd);
+  HistoryPointer = -1;
   Elements.DetailTerminalInput.value = "";
 }
 
@@ -1507,15 +1758,54 @@ function RenderServerConfigTab() {
       const pDiv = document.createElement("div");
       pDiv.className = "d-flex align-items-center justify-content-between p-2 rounded border mb-2 font-monospace small";
       pDiv.innerHTML = `
-        <span>Host: <strong>${p.HostPort}</strong></span>
-        <span>&rarr;</span>
-        <span>Container: <strong>${p.ContainerPort}/${p.Protocol}</strong></span>
+        <div>
+          <span>Host: <strong class="text-primary">${p.HostPort}</strong></span>
+          <span class="mx-1">&rarr;</span>
+          <span>Container: <strong>${p.ContainerPort}/${p.Protocol}</strong></span>
+        </div>
+        <button class="btn btn-xs btn-outline-danger DeletePortBtn" data-cport="${p.ContainerPort}" data-proto="${p.Protocol}" title="Remove port mapping">
+          <i class="bi bi-trash"></i>
+        </button>
       `;
       Elements.DetailPortsContainer.appendChild(pDiv);
     }
+
+    Elements.DetailPortsContainer.querySelectorAll(".DeletePortBtn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const cport = btn.dataset.cport;
+        const proto = btn.dataset.proto;
+        if (!confirm(`Remove port mapping ${cport}/${proto}? The container will be updated.`)) return;
+        try {
+          const res = await fetch(`/api/servers/${ActiveDetailServerId}/ports/${cport}/${proto}`, {
+            method: "DELETE",
+          });
+          const json = await res.json();
+          if (json.Success) {
+            await FetchServers();
+            RenderServerConfigTab();
+          } else {
+            alert("Failed to remove port: " + json.Error);
+          }
+        } catch {
+          alert("Network error removing port");
+        }
+      });
+    });
   } else {
     Elements.DetailPortsContainer.innerHTML = `<span class="small text-body-secondary">No exposed ports configured.</span>`;
   }
+
+  FetchServerWebhook(server.Id);
+}
+
+async function FetchServerWebhook(serverId) {
+  try {
+    const res = await fetch(`/api/servers/${serverId}/webhook`);
+    const json = await res.json();
+    if (json.Success) {
+      Elements.DetailWebhookUrlInput.value = `${window.location.origin}${json.Data.WebhookUrl}`;
+    }
+  } catch {}
 }
 
 function RenderServerNetworkingTab() {
@@ -1527,12 +1817,29 @@ function RenderServerNetworkingTab() {
     Elements.DetailSubdomainInput.value = defaultSubdomain;
   }
 
+  Elements.DetailCaddyTargetPortSelect.innerHTML = "";
+  if (server.Ports && server.Ports.length > 0) {
+    for (const p of server.Ports) {
+      const opt = document.createElement("option");
+      opt.value = p.HostPort;
+      opt.textContent = `Host ${p.HostPort} (${p.ContainerPort}/${p.Protocol})`;
+      Elements.DetailCaddyTargetPortSelect.appendChild(opt);
+    }
+  } else {
+    const opt = document.createElement("option");
+    opt.value = "3000";
+    opt.textContent = "Host 3000";
+    Elements.DetailCaddyTargetPortSelect.appendChild(opt);
+  }
+
   UpdateCaddySnippet();
 
   const portsText =
     server.Ports && server.Ports.length > 0
       ? server.Ports.map((p) => `${p.HostPort} -> ${p.ContainerPort}/${p.Protocol}`).join("<br>")
       : "None";
+
+  const targetHostPort = Elements.DetailCaddyTargetPortSelect.value || server?.Ports?.[0]?.HostPort || "3000";
 
   Elements.DetailNetworkInfoContainer.innerHTML = `
     <div class="mb-3">
@@ -1545,20 +1852,90 @@ function RenderServerNetworkingTab() {
     </div>
     <div class="mb-2">
       <span class="text-body-secondary small d-block mb-1">Caddy Direct Proxy Target</span>
-      <span class="font-monospace small text-primary">127.0.0.1:${server.Ports?.[0]?.HostPort || "3000"}</span>
+      <span class="font-monospace small text-primary">127.0.0.1:${targetHostPort}</span>
     </div>
   `;
 }
 
 function UpdateCaddySnippet() {
-  const server = Servers.find((s) => s.Id === ActiveDetailServerId);
   const domain = Elements.DetailSubdomainInput.value.trim() || "subdomain.yourdomain.com";
-  const port = server?.Ports?.[0]?.HostPort || 3000;
+  const port = Elements.DetailCaddyTargetPortSelect?.value || 3000;
 
   Elements.DetailCaddySnippetPre.textContent = `${domain} {
     reverse_proxy 127.0.0.1:${port}
     encode gzip
 }`;
+}
+
+async function FetchServerSchedules(serverId) {
+  try {
+    const res = await fetch(`/api/servers/${serverId}/schedules`);
+    const json = await res.json();
+    if (json.Success) {
+      RenderServerSchedulesTable(json.Data);
+    }
+  } catch {
+    Elements.DetailSchedulesTableBody.innerHTML = `
+      <tr><td colspan="6" class="text-center py-4 text-danger">Failed to load automated tasks.</td></tr>
+    `;
+  }
+}
+
+function RenderServerSchedulesTable(schedules) {
+  Elements.DetailSchedulesCountBadge.textContent = `${schedules?.length || 0} tasks`;
+  Elements.DetailSchedulesTableBody.innerHTML = "";
+  if (!schedules || schedules.length === 0) {
+    Elements.DetailSchedulesTableBody.innerHTML = `
+      <tr><td colspan="6" class="text-center py-4 text-body-secondary">No automated tasks configured yet.</td></tr>
+    `;
+    return;
+  }
+
+  for (const s of schedules) {
+    const tr = document.createElement("tr");
+    const badgeColor = s.TaskType === "Backup" ? "info" : s.TaskType === "Restart" ? "warning" : "primary";
+    const nextFormatted = new Date(s.NextRun).toLocaleString();
+    const lastFormatted = s.LastRun ? new Date(s.LastRun).toLocaleString() : "Never";
+
+    tr.innerHTML = `
+      <td class="ps-3 py-2 fw-medium">${EscapeHtml(s.Name)}</td>
+      <td class="py-2"><span class="badge text-bg-${badgeColor}">${s.TaskType}</span></td>
+      <td class="py-2 small font-monospace">Every ${s.IntervalMinutes}m</td>
+      <td class="py-2 small font-monospace">${nextFormatted}</td>
+      <td class="py-2 small font-monospace">${lastFormatted}</td>
+      <td class="py-2 text-end pe-3">
+        <button class="btn btn-xs btn-outline-success me-1 RunScheduleBtn" data-id="${s.Id}" title="Trigger Now">
+          <i class="bi bi-play-fill"></i>
+        </button>
+        <button class="btn btn-xs btn-outline-danger DeleteScheduleBtn" data-id="${s.Id}" title="Delete Task">
+          <i class="bi bi-trash"></i>
+        </button>
+      </td>
+    `;
+    Elements.DetailSchedulesTableBody.appendChild(tr);
+  }
+
+  Elements.DetailSchedulesTableBody.querySelectorAll(".RunScheduleBtn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await fetch(`/api/servers/${ActiveDetailServerId}/schedules/${btn.dataset.id}/run`, { method: "POST" });
+        await FetchServerSchedules(ActiveDetailServerId);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  Elements.DetailSchedulesTableBody.querySelectorAll(".DeleteScheduleBtn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Are you sure you want to delete this automated task?")) return;
+      try {
+        await fetch(`/api/servers/${ActiveDetailServerId}/schedules/${btn.dataset.id}`, { method: "DELETE" });
+        await FetchServerSchedules(ActiveDetailServerId);
+      } catch {}
+    });
+  });
 }
 
 async function FetchServerAuditLogs(serverId) {
@@ -1875,12 +2252,14 @@ async function HandleDeploySubmit(e) {
   }
 
   const ports = [];
-  const hostPortVal = Elements.DeployHostPortInput.value;
-  if (hostPortVal) {
-    const hostPort = Number(hostPortVal);
-    const containerPort = template?.DefaultPorts[0]?.ContainerPort || hostPort;
-    const protocol = template?.DefaultPorts[0]?.Protocol || "tcp";
-    ports.push({ HostPort: hostPort, ContainerPort: containerPort, Protocol: protocol });
+  const portRows = Elements.DeployPortsListContainer.querySelectorAll(".DeployPortRow");
+  for (const r of portRows) {
+    const hp = Number(r.querySelector(".DeployRowHostPort")?.value);
+    const cp = Number(r.querySelector(".DeployRowContainerPort")?.value);
+    const proto = r.querySelector(".DeployRowProtocol")?.value || "tcp";
+    if (hp && cp) {
+      ports.push({ HostPort: hp, ContainerPort: cp, Protocol: proto });
+    }
   }
 
   const payload = {
@@ -1945,5 +2324,6 @@ if (typeof window !== "undefined") {
     FetchUsers,
     FetchServerBackups,
     FetchServerAuditLogs,
+    FetchServerSchedules,
   };
 }

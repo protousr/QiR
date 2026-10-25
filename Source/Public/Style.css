@@ -460,6 +460,12 @@ body {
   color: #38bdf8;
 }
 
+.btn-xs {
+  padding: 0.15rem 0.45rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+}
+
 .ansi-bold { font-weight: 600; }
 .ansi-dim { opacity: 0.65; }
 .ansi-italic { font-style: italic; }

@@ -2,13 +2,17 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import fs from "node:fs";
 import path from "node:path";
 import { ServerService } from "../../Core/Services/ServerService.js";
+import { ScheduleService } from "../../Core/Services/ScheduleService.js";
 import { CreateServerSchema, SendCommandSchema } from "../Middleware/ValidationMiddleware.js";
+import type { IPortMapping } from "../../Core/Types/ServerTypes.js";
 
 export class ServerController {
   private readonly ServerService: ServerService;
+  private readonly ScheduleService: ScheduleService;
 
   public constructor() {
     this.ServerService = ServerService.GetInstance();
+    this.ScheduleService = ScheduleService.GetInstance();
   }
 
   public GetAllServers = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
@@ -471,6 +475,188 @@ export class ServerController {
         Success: false,
         Error: err instanceof Error ? err.message : "Failed to fetch audit logs",
       });
+    }
+  };
+
+  public AddPort = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { HostPort: number; ContainerPort: number; Protocol: "tcp" | "udp" };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const { HostPort, ContainerPort, Protocol } = request.body;
+      if (!HostPort || !ContainerPort) {
+        reply.status(400).send({ Success: false, Error: "HostPort and ContainerPort are required" });
+        return;
+      }
+      const updated = await this.ServerService.AddServerPort(request.params.Id, {
+        HostPort: Number(HostPort),
+        ContainerPort: Number(ContainerPort),
+        Protocol: Protocol || "tcp",
+      });
+      reply.send({ Success: true, Data: updated, Message: "Port allocated and container updated" });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Failed to add port" });
+    }
+  };
+
+  public RemovePort = async (
+    request: FastifyRequest<{
+      Params: { Id: string; ContainerPort: string; Protocol: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const updated = await this.ServerService.RemoveServerPort(
+        request.params.Id,
+        Number(request.params.ContainerPort),
+        request.params.Protocol || "tcp"
+      );
+      reply.send({ Success: true, Data: updated, Message: "Port removed successfully" });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Failed to remove port" });
+    }
+  };
+
+  public CloneServer = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { NewName: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const cloned = await this.ServerService.CloneServer(
+        request.params.Id,
+        request.body.NewName || `cloned-${Date.now()}`
+      );
+      reply.status(201).send({ Success: true, Data: cloned, Message: "Server cloned successfully" });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Failed to clone server" });
+    }
+  };
+
+  public BulkStart = async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    try {
+      const result = await this.ServerService.BulkStartAll();
+      reply.send({ Success: true, Data: result, Message: `Started ${result.SuccessCount} container(s)` });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Bulk start failed" });
+    }
+  };
+
+  public BulkStop = async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    try {
+      const result = await this.ServerService.BulkStopAll();
+      reply.send({ Success: true, Data: result, Message: `Stopped ${result.SuccessCount} container(s)` });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Bulk stop failed" });
+    }
+  };
+
+  public GetSchedules = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const schedules = this.ScheduleService.GetSchedulesForServer(request.params.Id);
+      reply.send({ Success: true, Data: schedules });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Failed to fetch schedules" });
+    }
+  };
+
+  public CreateSchedule = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { Name: string; TaskType: "Backup" | "Restart" | "Command"; IntervalMinutes: number; Command?: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const schedule = this.ScheduleService.CreateSchedule(request.params.Id, request.body);
+      reply.status(201).send({ Success: true, Data: schedule, Message: "Schedule created successfully" });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Failed to create schedule" });
+    }
+  };
+
+  public DeleteSchedule = async (
+    request: FastifyRequest<{ Params: { Id: string; ScheduleId: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      this.ScheduleService.DeleteSchedule(request.params.ScheduleId);
+      reply.send({ Success: true, Message: "Schedule deleted successfully" });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Failed to delete schedule" });
+    }
+  };
+
+  public RunSchedule = async (
+    request: FastifyRequest<{ Params: { Id: string; ScheduleId: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ScheduleService.TriggerScheduleNow(request.params.ScheduleId);
+      reply.send({ Success: true, Message: "Schedule triggered successfully" });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Failed to run schedule" });
+    }
+  };
+
+  public GetWebhook = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const server = await this.ServerService.GetServer(request.params.Id);
+      if (!server) {
+        reply.status(404).send({ Success: false, Error: "Server not found" });
+        return;
+      }
+      reply.send({
+        Success: true,
+        Data: {
+          Token: server.WebhookToken,
+          WebhookUrl: `/api/webhooks/${server.Id}/${server.WebhookToken}`,
+        },
+      });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Failed to get webhook" });
+    }
+  };
+
+  public RotateWebhook = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const token = this.ServerService.RotateWebhookToken(request.params.Id);
+      reply.send({
+        Success: true,
+        Data: {
+          Token: token,
+          WebhookUrl: `/api/webhooks/${request.params.Id}/${token}`,
+        },
+        Message: "Webhook token rotated successfully",
+      });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Failed to rotate webhook" });
+    }
+  };
+
+  public PublicWebhookTrigger = async (
+    request: FastifyRequest<{ Params: { Id: string; Token: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.TriggerWebhook(request.params.Id, request.params.Token);
+      reply.send({ Success: true, Message: "Deploy webhook executed successfully" });
+    } catch (err) {
+      reply.status(401).send({ Success: false, Error: err instanceof Error ? err.message : "Webhook trigger failed" });
     }
   };
 }

@@ -6,6 +6,7 @@ import type {
   ICreateServerInput,
   ServerStatus,
   IServerStats,
+  IPortMapping,
 } from "../Types/ServerTypes.js";
 import { ContainerManager } from "../Docker/ContainerManager.js";
 import { LogStreamer } from "../Docker/LogStreamer.js";
@@ -57,6 +58,9 @@ export class ServerService {
       const data = await fs.readFile(this.DatabaseFilePath, "utf8");
       const list = JSON.parse(data) as IServerInstance[];
       for (const server of list) {
+        if (!server.WebhookToken) {
+          server.WebhookToken = crypto.randomBytes(24).toString("hex");
+        }
         this.Servers.set(server.Id, server);
       }
     } catch {
@@ -120,6 +124,7 @@ export class ServerService {
       AutoRestart: input.AutoRestart ?? true,
       OwnerId: input.OwnerId,
       OwnerUsername: input.OwnerUsername,
+      WebhookToken: input.WebhookToken || crypto.randomBytes(24).toString("hex"),
     };
 
     this.Servers.set(serverId, serverInstance);
@@ -360,5 +365,199 @@ export class ServerService {
 
   public GetServerAuditLogs(serverId: string): IAuditLogRecord[] {
     return this.DatabaseManager.GetAuditLogsForServer(serverId);
+  }
+
+  public async AddServerPort(serverId: string, port: IPortMapping): Promise<IServerInstance> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+
+    const exists = server.Ports.some(
+      (p) => p.ContainerPort === port.ContainerPort && p.Protocol === port.Protocol
+    );
+    if (exists) {
+      throw new Error(`Port ${port.ContainerPort}/${port.Protocol} is already mapped`);
+    }
+
+    const updatedPorts = [...server.Ports, port];
+    const newContainerId = await this.ContainerManager.RecreateContainerWithNewPorts(
+      server.ContainerId,
+      updatedPorts
+    );
+
+    server.ContainerId = newContainerId;
+    server.Ports = updatedPorts;
+    await this.SaveServers();
+
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "PORT_ADD",
+      IpAddress: "system",
+      Details: `Added port mapping ${port.HostPort}->${port.ContainerPort}/${port.Protocol} for server ${server.Name}`,
+    });
+
+    return server;
+  }
+
+  public async RemoveServerPort(
+    serverId: string,
+    containerPort: number,
+    protocol: string
+  ): Promise<IServerInstance> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+
+    const updatedPorts = server.Ports.filter(
+      (p) => !(p.ContainerPort === containerPort && p.Protocol === protocol)
+    );
+    if (updatedPorts.length === server.Ports.length) {
+      throw new Error(`Port mapping ${containerPort}/${protocol} not found`);
+    }
+
+    const newContainerId = await this.ContainerManager.RecreateContainerWithNewPorts(
+      server.ContainerId,
+      updatedPorts
+    );
+
+    server.ContainerId = newContainerId;
+    server.Ports = updatedPorts;
+    await this.SaveServers();
+
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "PORT_REMOVE",
+      IpAddress: "system",
+      Details: `Removed port mapping ${containerPort}/${protocol} for server ${server.Name}`,
+    });
+
+    return server;
+  }
+
+  public async CloneServer(sourceServerId: string, newName: string): Promise<IServerInstance> {
+    const source = this.Servers.get(sourceServerId);
+    if (!source) {
+      throw new Error(`Source server ${sourceServerId} not found`);
+    }
+
+    const template = this.TemplateService.GetTemplate(source.TemplateId);
+    if (!template) {
+      throw new Error(`Template not found: ${source.TemplateId}`);
+    }
+
+    const allAllocatedHostPorts = new Set<number>();
+    for (const s of this.Servers.values()) {
+      for (const p of s.Ports) {
+        allAllocatedHostPorts.add(p.HostPort);
+      }
+    }
+
+    const clonedPorts: IPortMapping[] = source.Ports.map((p) => {
+      let candidatePort = p.HostPort + 10;
+      while (allAllocatedHostPorts.has(candidatePort)) {
+        candidatePort++;
+      }
+      allAllocatedHostPorts.add(candidatePort);
+      return {
+        HostPort: candidatePort,
+        ContainerPort: p.ContainerPort,
+        Protocol: p.Protocol,
+      };
+    });
+
+    const newServer = await this.CreateServer({
+      Name: newName,
+      TemplateId: source.TemplateId,
+      Ports: clonedPorts,
+      EnvironmentVariables: { ...source.EnvironmentVariables },
+      Limits: { ...source.Limits },
+      AutoRestart: source.AutoRestart,
+      OwnerId: source.OwnerId,
+      OwnerUsername: source.OwnerUsername,
+    });
+
+    try {
+      const sourceVolPath = this.VolumeService.GetServerVolumePath(sourceServerId);
+      const targetVolPath = this.VolumeService.GetServerVolumePath(newServer.Id);
+      await fs.cp(sourceVolPath, targetVolPath, { recursive: true });
+    } catch {}
+
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "SERVER_CLONE",
+      IpAddress: "system",
+      Details: `Cloned server "${source.Name}" to "${newName}" (${newServer.Id})`,
+    });
+
+    return newServer;
+  }
+
+  public RotateWebhookToken(serverId: string): string {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+    server.WebhookToken = crypto.randomBytes(24).toString("hex");
+    this.SaveServers().catch(() => {});
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "WEBHOOK_ROTATE",
+      IpAddress: "system",
+      Details: `Rotated deploy webhook token for server ${server.Name}`,
+    });
+    return server.WebhookToken;
+  }
+
+  public async TriggerWebhook(serverId: string, token: string): Promise<void> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error("Server not found");
+    }
+    if (!server.WebhookToken || server.WebhookToken !== token) {
+      throw new Error("Invalid webhook authorization token");
+    }
+
+    await this.RestartServer(serverId);
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "WEBHOOK_TRIGGER",
+      IpAddress: "webhook",
+      Details: `Deploy webhook successfully triggered restart for server ${server.Name}`,
+    });
+  }
+
+  public async BulkStartAll(): Promise<{ SuccessCount: number; TotalCount: number }> {
+    const all = Array.from(this.Servers.values());
+    let successCount = 0;
+    for (const server of all) {
+      if (server.Status !== "Running") {
+        try {
+          await this.StartServer(server.Id);
+          successCount++;
+        } catch {}
+      }
+    }
+    return { SuccessCount: successCount, TotalCount: all.length };
+  }
+
+  public async BulkStopAll(): Promise<{ SuccessCount: number; TotalCount: number }> {
+    const all = Array.from(this.Servers.values());
+    let successCount = 0;
+    for (const server of all) {
+      if (server.Status === "Running") {
+        try {
+          await this.StopServer(server.Id);
+          successCount++;
+        } catch {}
+      }
+    }
+    return { SuccessCount: successCount, TotalCount: all.length };
   }
 }

@@ -6,6 +6,8 @@ import { GenericPythonTemplate } from "../../Templates/GenericPythonTemplate.js"
 import { PostgreSqlTemplate } from "../../Templates/PostgreSqlTemplate.js";
 import { RedisTemplate } from "../../Templates/RedisTemplate.js";
 import { NginxStaticTemplate } from "../../Templates/NginxStaticTemplate.js";
+import { MariaDbTemplate } from "../../Templates/MariaDbTemplate.js";
+import { MongoDbTemplate } from "../../Templates/MongoDbTemplate.js";
 
 export class TemplateService {
   private static Instance: TemplateService;
@@ -30,6 +32,8 @@ export class TemplateService {
     this.RegisterTemplate(new PostgreSqlTemplate());
     this.RegisterTemplate(new RedisTemplate());
     this.RegisterTemplate(new NginxStaticTemplate());
+    this.RegisterTemplate(new MariaDbTemplate());
+    this.RegisterTemplate(new MongoDbTemplate());
   }
 
   public RegisterTemplate(template: ITemplate): void {

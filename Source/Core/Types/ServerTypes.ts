@@ -39,6 +39,7 @@ export interface IServerInstance {
   AutoRestart: boolean;
   OwnerId?: string;
   OwnerUsername?: string;
+  WebhookToken?: string;
 }
 
 export interface ICreateServerInput {
@@ -50,6 +51,7 @@ export interface ICreateServerInput {
   AutoRestart?: boolean;
   OwnerId?: string;
   OwnerUsername?: string;
+  WebhookToken?: string;
 }
 
 export interface IServerStats {

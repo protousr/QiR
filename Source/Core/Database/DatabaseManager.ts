@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import fs from "node:fs";
 import { ConfigInstance } from "../../Config/EnvironmentConfig.js";
+import type { ISchedule } from "../Types/ScheduleTypes.js";
 
 export interface IUserRecord {
   Id: string;
@@ -95,6 +96,19 @@ export class DatabaseManager {
         Action TEXT NOT NULL,
         IpAddress TEXT NOT NULL,
         Details TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS Schedules (
+        Id TEXT PRIMARY KEY,
+        ServerId TEXT NOT NULL,
+        Name TEXT NOT NULL,
+        TaskType TEXT NOT NULL,
+        IntervalMinutes INTEGER NOT NULL,
+        Command TEXT,
+        Enabled INTEGER NOT NULL DEFAULT 1,
+        LastRun TEXT,
+        NextRun TEXT NOT NULL,
+        CreatedAt TEXT NOT NULL
       );
     `);
 
@@ -216,5 +230,118 @@ export class DatabaseManager {
       "SELECT * FROM AuditLogs WHERE Details LIKE ? ORDER BY Timestamp DESC LIMIT ?"
     );
     return stmt.all(`%${serverId}%`, limit) as unknown as IAuditLogRecord[];
+  }
+
+  public CreateSchedule(schedule: ISchedule): void {
+    const stmt = this.Database.prepare(
+      "INSERT INTO Schedules (Id, ServerId, Name, TaskType, IntervalMinutes, Command, Enabled, LastRun, NextRun, CreatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    stmt.run(
+      schedule.Id,
+      schedule.ServerId,
+      schedule.Name,
+      schedule.TaskType,
+      schedule.IntervalMinutes,
+      schedule.Command || null,
+      schedule.Enabled ? 1 : 0,
+      schedule.LastRun || null,
+      schedule.NextRun,
+      schedule.CreatedAt
+    );
+  }
+
+  public GetSchedulesForServer(serverId: string): ISchedule[] {
+    const stmt = this.Database.prepare(
+      "SELECT Id, ServerId, Name, TaskType, IntervalMinutes, Command, Enabled, LastRun, NextRun, CreatedAt FROM Schedules WHERE ServerId = ? ORDER BY CreatedAt ASC"
+    );
+    const rows = stmt.all(serverId) as Array<{
+      Id: string;
+      ServerId: string;
+      Name: string;
+      TaskType: string;
+      IntervalMinutes: number;
+      Command: string | null;
+      Enabled: number;
+      LastRun: string | null;
+      NextRun: string;
+      CreatedAt: string;
+    }>;
+    return rows.map((r) => ({
+      ...r,
+      TaskType: r.TaskType as ISchedule["TaskType"],
+      Enabled: Boolean(r.Enabled),
+      Command: r.Command || undefined,
+      LastRun: r.LastRun || undefined,
+    }));
+  }
+
+  public GetAllEnabledSchedules(): ISchedule[] {
+    const stmt = this.Database.prepare(
+      "SELECT Id, ServerId, Name, TaskType, IntervalMinutes, Command, Enabled, LastRun, NextRun, CreatedAt FROM Schedules WHERE Enabled = 1"
+    );
+    const rows = stmt.all() as Array<{
+      Id: string;
+      ServerId: string;
+      Name: string;
+      TaskType: string;
+      IntervalMinutes: number;
+      Command: string | null;
+      Enabled: number;
+      LastRun: string | null;
+      NextRun: string;
+      CreatedAt: string;
+    }>;
+    return rows.map((r) => ({
+      ...r,
+      TaskType: r.TaskType as ISchedule["TaskType"],
+      Enabled: Boolean(r.Enabled),
+      Command: r.Command || undefined,
+      LastRun: r.LastRun || undefined,
+    }));
+  }
+
+  public FindScheduleById(id: string): ISchedule | undefined {
+    const stmt = this.Database.prepare(
+      "SELECT Id, ServerId, Name, TaskType, IntervalMinutes, Command, Enabled, LastRun, NextRun, CreatedAt FROM Schedules WHERE Id = ?"
+    );
+    const r = stmt.get(id) as
+      | {
+          Id: string;
+          ServerId: string;
+          Name: string;
+          TaskType: string;
+          IntervalMinutes: number;
+          Command: string | null;
+          Enabled: number;
+          LastRun: string | null;
+          NextRun: string;
+          CreatedAt: string;
+        }
+      | undefined;
+    if (!r) return undefined;
+    return {
+      ...r,
+      TaskType: r.TaskType as ISchedule["TaskType"],
+      Enabled: Boolean(r.Enabled),
+      Command: r.Command || undefined,
+      LastRun: r.LastRun || undefined,
+    };
+  }
+
+  public UpdateScheduleNextRun(id: string, lastRun: string, nextRun: string): void {
+    const stmt = this.Database.prepare(
+      "UPDATE Schedules SET LastRun = ?, NextRun = ? WHERE Id = ?"
+    );
+    stmt.run(lastRun, nextRun, id);
+  }
+
+  public ToggleSchedule(id: string, enabled: boolean): void {
+    const stmt = this.Database.prepare("UPDATE Schedules SET Enabled = ? WHERE Id = ?");
+    stmt.run(enabled ? 1 : 0, id);
+  }
+
+  public DeleteSchedule(id: string): void {
+    const stmt = this.Database.prepare("DELETE FROM Schedules WHERE Id = ?");
+    stmt.run(id);
   }
 }
