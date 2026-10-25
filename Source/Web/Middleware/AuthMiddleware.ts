@@ -49,3 +49,18 @@ export async function RequireAuth(
 
   request.User = user;
 }
+
+export async function RequireAdmin(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  await RequireAuth(request, reply);
+  if (reply.sent) return;
+
+  if (request.User?.Role !== "admin") {
+    reply.status(403).send({
+      Success: false,
+      Error: "Administrative privileges required.",
+    });
+  }
+}

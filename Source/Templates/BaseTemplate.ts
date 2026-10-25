@@ -15,6 +15,7 @@ export abstract class BaseTemplate implements ITemplate {
   public abstract readonly DefaultPorts: IPortMapping[];
   public abstract readonly Fields: ITemplateField[];
   public abstract readonly VolumeMountPath: string;
+  public readonly InitialFiles?: Record<string, string>;
 
   public BuildContainerConfig(
     input: ICreateServerInput,

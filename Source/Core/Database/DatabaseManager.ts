@@ -8,6 +8,7 @@ export interface IUserRecord {
   Username: string;
   PasswordHash: string;
   PasswordSalt: string;
+  Role: "admin" | "user";
   CreatedAt: string;
 }
 
@@ -65,6 +66,7 @@ export class DatabaseManager {
         Username TEXT UNIQUE NOT NULL,
         PasswordHash TEXT NOT NULL,
         PasswordSalt TEXT NOT NULL,
+        Role TEXT NOT NULL DEFAULT 'user',
         CreatedAt TEXT NOT NULL
       );
 
@@ -95,6 +97,13 @@ export class DatabaseManager {
         Details TEXT NOT NULL
       );
     `);
+
+    try {
+      this.Database.exec("ALTER TABLE Users ADD COLUMN Role TEXT NOT NULL DEFAULT 'user'");
+    } catch {}
+    try {
+      this.Database.exec("UPDATE Users SET Role = 'admin' WHERE Username = 'admin'");
+    } catch {}
   }
 
   public GetDatabase(): DatabaseSync {
@@ -110,9 +119,23 @@ export class DatabaseManager {
 
   public CreateUser(user: IUserRecord): void {
     const stmt = this.Database.prepare(
-      "INSERT INTO Users (Id, Username, PasswordHash, PasswordSalt, CreatedAt) VALUES (?, ?, ?, ?, ?)"
+      "INSERT INTO Users (Id, Username, PasswordHash, PasswordSalt, Role, CreatedAt) VALUES (?, ?, ?, ?, ?, ?)"
     );
-    stmt.run(user.Id, user.Username, user.PasswordHash, user.PasswordSalt, user.CreatedAt);
+    stmt.run(
+      user.Id,
+      user.Username,
+      user.PasswordHash,
+      user.PasswordSalt,
+      user.Role || "user",
+      user.CreatedAt
+    );
+  }
+
+  public GetAllUsers(): IUserRecord[] {
+    const stmt = this.Database.prepare(
+      "SELECT Id, Username, PasswordHash, PasswordSalt, Role, CreatedAt FROM Users ORDER BY CreatedAt ASC"
+    );
+    return stmt.all() as unknown as IUserRecord[];
   }
 
   public FindUserByUsername(username: string): IUserRecord | undefined {
@@ -123,6 +146,13 @@ export class DatabaseManager {
   public FindUserById(id: string): IUserRecord | undefined {
     const stmt = this.Database.prepare("SELECT * FROM Users WHERE Id = ?");
     return stmt.get(id) as IUserRecord | undefined;
+  }
+
+  public DeleteUser(id: string): void {
+    const stmtSessions = this.Database.prepare("DELETE FROM Sessions WHERE UserId = ?");
+    stmtSessions.run(id);
+    const stmt = this.Database.prepare("DELETE FROM Users WHERE Id = ?");
+    stmt.run(id);
   }
 
   public CreateSession(session: ISessionRecord): void {

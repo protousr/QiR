@@ -22,6 +22,11 @@ export class GenericPythonTemplate extends BaseTemplate {
     },
   ];
 
+  public override readonly InitialFiles: Record<string, string> = {
+    "requirements.txt": "",
+    "main.py": `import http.server\nimport socketserver\nimport os\n\nPORT = int(os.environ.get("PORT", 8000))\n\nclass Handler(http.server.SimpleHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.send_header("Content-type", "application/json")\n        self.end_headers()\n        self.wfile.write(b'{"status": "online", "message": "QiR Python Container Running"}')\n\nwith socketserver.TCPServer(("0.0.0.0", PORT), Handler) as httpd:\n    print(f"[QiR] Python server listening on http://0.0.0.0:{PORT}")\n    httpd.serve_forever()\n`,
+  };
+
   public readonly Fields: ITemplateField[] = [
     {
       Key: "ENTRY_FILE",
@@ -52,7 +57,7 @@ export class GenericPythonTemplate extends BaseTemplate {
 
     let startupCommand: string;
     if (autoPip) {
-      startupCommand = `cd /app && if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi && if [ -f ${entryFile} ]; then python ${entryFile}; else echo "Waiting for python files in /app..."; tail -f /dev/null; fi`;
+      startupCommand = `cd /app && if [ -s requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi && if [ -f ${entryFile} ]; then python ${entryFile}; else echo "Waiting for python files in /app..."; tail -f /dev/null; fi`;
     } else {
       startupCommand = `cd /app && if [ -f ${entryFile} ]; then python ${entryFile}; else echo "Waiting for python files in /app..."; tail -f /dev/null; fi`;
     }

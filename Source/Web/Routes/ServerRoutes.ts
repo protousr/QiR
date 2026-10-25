@@ -11,8 +11,14 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post("/servers", controller.CreateServer);
   fastify.post<{ Params: { Id: string } }>("/servers/:Id/start", controller.StartServer);
   fastify.post<{ Params: { Id: string } }>("/servers/:Id/stop", controller.StopServer);
+  fastify.post<{ Params: { Id: string } }>("/servers/:Id/kill", controller.KillServer);
   fastify.post<{ Params: { Id: string } }>("/servers/:Id/restart", controller.RestartServer);
   fastify.delete<{ Params: { Id: string } }>("/servers/:Id", controller.DeleteServer);
+  fastify.get<{ Params: { Id: string } }>("/servers/:Id/inspect", controller.InspectServer);
+  fastify.patch<{
+    Params: { Id: string };
+    Body: { EnvironmentVariables?: Record<string, string>; AutoRestart?: boolean };
+  }>("/servers/:Id/config", controller.UpdateServerConfig);
   fastify.post<{ Params: { Id: string } }>("/servers/:Id/command", controller.SendCommand);
   fastify.get<{ Params: { Id: string }; Querystring: { Tail?: string } }>(
     "/servers/:Id/logs",
@@ -21,6 +27,10 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get<{ Params: { Id: string }; Querystring: { SubPath?: string } }>(
     "/servers/:Id/files",
     controller.ListVolumeFiles
+  );
+  fastify.delete<{ Params: { Id: string }; Querystring: { FilePath: string } }>(
+    "/servers/:Id/files",
+    controller.DeleteVolumeFile
   );
   fastify.get<{ Params: { Id: string }; Querystring: { FilePath: string } }>(
     "/servers/:Id/files/content",

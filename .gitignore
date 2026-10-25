@@ -1,6 +1,6 @@
 node_modules
 Distribution
-Data/Servers
+Data/
 .env
 
 *.db

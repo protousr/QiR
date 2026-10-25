@@ -10,7 +10,10 @@ export class ServerController {
   }
 
   public GetAllServers = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const servers = await this.ServerService.GetAllServers();
+    let servers = await this.ServerService.GetAllServers();
+    if (request.User && request.User.Role !== "admin") {
+      servers = servers.filter((s) => s.OwnerId === request.User?.Id);
+    }
     reply.send({ Success: true, Data: servers });
   };
 
@@ -34,7 +37,13 @@ export class ServerController {
     }
 
     try {
-      const server = await this.ServerService.CreateServer(validation.data);
+      const serverInput = {
+        ...validation.data,
+        OwnerId: request.User?.Id,
+        OwnerUsername: request.User?.Username,
+      };
+
+      const server = await this.ServerService.CreateServer(serverInput);
       reply.status(201).send({ Success: true, Data: server });
     } catch (err) {
       reply.status(500).send({
@@ -70,6 +79,21 @@ export class ServerController {
       reply.status(500).send({
         Success: false,
         Error: err instanceof Error ? err.message : "Failed to stop server",
+      });
+    }
+  };
+
+  public KillServer = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.KillServer(request.params.Id);
+      reply.send({ Success: true, Message: "Server killed successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to kill server",
       });
     }
   };
@@ -198,6 +222,63 @@ export class ServerController {
       reply.status(500).send({
         Success: false,
         Error: err instanceof Error ? err.message : "Failed to write file",
+      });
+    }
+  };
+
+  public DeleteVolumeFile = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Querystring: { FilePath: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.GetVolumeService().DeleteFile(
+        request.params.Id,
+        request.query.FilePath
+      );
+      reply.send({ Success: true, Message: "File deleted successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to delete file",
+      });
+    }
+  };
+
+  public InspectServer = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const inspect = await this.ServerService.InspectServer(request.params.Id);
+      reply.send({ Success: true, Data: inspect });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to inspect container",
+      });
+    }
+  };
+
+  public UpdateServerConfig = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { EnvironmentVariables?: Record<string, string>; AutoRestart?: boolean };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const updated = await this.ServerService.UpdateServerConfig(
+        request.params.Id,
+        request.body
+      );
+      reply.send({ Success: true, Data: updated });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to update configuration",
       });
     }
   };

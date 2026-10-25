@@ -91,6 +91,9 @@ export class ServerService {
     const serverId = crypto.randomUUID();
     const containerName = `qir-${input.Name.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-${serverId.slice(0, 8)}`;
     const volumePath = await this.VolumeService.EnsureServerVolume(serverId);
+
+    await this.VolumeService.ProvisionInitialFiles(serverId, template.InitialFiles);
+
     const containerConfig = template.BuildContainerConfig(input, volumePath);
 
     const container = await this.ContainerManager.CreateContainer(
@@ -109,6 +112,8 @@ export class ServerService {
       EnvironmentVariables: input.EnvironmentVariables || {},
       Limits: input.Limits || {},
       AutoRestart: input.AutoRestart ?? true,
+      OwnerId: input.OwnerId,
+      OwnerUsername: input.OwnerUsername,
     };
 
     this.Servers.set(serverId, serverInstance);
@@ -147,7 +152,27 @@ export class ServerService {
     await this.SaveServers();
 
     try {
-      await this.ContainerManager.StopContainer(server.ContainerId);
+      await this.ContainerManager.StopContainer(server.ContainerId, 10);
+      server.Status = "Stopped";
+    } catch (err) {
+      server.Status = "Error";
+      throw err;
+    } finally {
+      await this.SaveServers();
+    }
+  }
+
+  public async KillServer(serverId: string): Promise<void> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+
+    server.Status = "Stopping";
+    await this.SaveServers();
+
+    try {
+      await this.ContainerManager.StopContainer(server.ContainerId, 0);
       server.Status = "Stopped";
     } catch (err) {
       server.Status = "Error";
@@ -185,8 +210,7 @@ export class ServerService {
 
     try {
       await this.ContainerManager.RemoveContainer(server.ContainerId, true);
-    } catch {
-    }
+    } catch {}
 
     await this.VolumeService.DeleteServerVolume(serverId);
     this.Servers.delete(serverId);
@@ -216,6 +240,11 @@ export class ServerService {
   public async GetAllServers(): Promise<IServerInstance[]> {
     await this.SyncAllServerStatuses();
     return Array.from(this.Servers.values());
+  }
+
+  public async GetServersByOwner(ownerId: string): Promise<IServerInstance[]> {
+    await this.SyncAllServerStatuses();
+    return Array.from(this.Servers.values()).filter((s) => s.OwnerId === ownerId);
   }
 
   public async SendCommand(serverId: string, command: string): Promise<string> {
@@ -264,6 +293,32 @@ export class ServerService {
     }
 
     return await this.StatsCollector.StreamStats(serverId, server.ContainerId, callback);
+  }
+
+  public async InspectServer(serverId: string): Promise<unknown> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+    return await this.ContainerManager.InspectContainer(server.ContainerId);
+  }
+
+  public async UpdateServerConfig(
+    serverId: string,
+    updates: { EnvironmentVariables?: Record<string, string>; AutoRestart?: boolean }
+  ): Promise<IServerInstance> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+    if (updates.EnvironmentVariables) {
+      server.EnvironmentVariables = updates.EnvironmentVariables;
+    }
+    if (updates.AutoRestart !== undefined) {
+      server.AutoRestart = updates.AutoRestart;
+    }
+    await this.SaveServers();
+    return server;
   }
 
   public GetVolumeService(): VolumeService {

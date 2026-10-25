@@ -37,6 +37,8 @@ export interface IServerInstance {
   EnvironmentVariables: Record<string, string>;
   Limits: IResourceLimits;
   AutoRestart: boolean;
+  OwnerId?: string;
+  OwnerUsername?: string;
 }
 
 export interface ICreateServerInput {
@@ -46,6 +48,8 @@ export interface ICreateServerInput {
   EnvironmentVariables?: Record<string, string>;
   Limits?: IResourceLimits;
   AutoRestart?: boolean;
+  OwnerId?: string;
+  OwnerUsername?: string;
 }
 
 export interface IServerStats {

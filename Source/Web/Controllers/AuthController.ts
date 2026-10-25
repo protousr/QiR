@@ -74,6 +74,7 @@ export class AuthController {
             User: {
               Id: user.Id,
               Username: user.Username,
+              Role: user.Role,
             },
             Token: loginResult.RawToken,
           },
@@ -87,6 +88,7 @@ export class AuthController {
           User: {
             Id: user.Id,
             Username: user.Username,
+            Role: user.Role,
           },
         },
       });
@@ -142,6 +144,7 @@ export class AuthController {
         User: {
           Id: result.User.Id,
           Username: result.User.Username,
+          Role: result.User.Role,
         },
         Token: result.RawToken,
       },
@@ -182,6 +185,7 @@ export class AuthController {
       Data: {
         Id: request.User.Id,
         Username: request.User.Username,
+        Role: request.User.Role,
         CreatedAt: request.User.CreatedAt,
       },
     });

@@ -1,6 +1,10 @@
 let Templates = [];
 let Servers = [];
-let ActiveConsoleServerId = null;
+let UsersList = [];
+let ActiveDetailServerId = null;
+let ActiveDetailTab = "Console";
+let ActiveDetailSubPath = "";
+let ActiveEditFilePath = "";
 let ConsoleSocket = null;
 let StatsSocket = null;
 let CurrentAuthToken = null;
@@ -21,32 +25,110 @@ const Elements = {
   SetupPassword: document.getElementById("SetupPassword"),
   SetupConfirmPassword: document.getElementById("SetupConfirmPassword"),
   SetupSubmitBtn: document.getElementById("SetupSubmitBtn"),
+
   AppWrapper: document.getElementById("AppWrapper"),
   CurrentUsernameText: document.getElementById("CurrentUsernameText"),
+  CurrentUserRoleBadge: document.getElementById("CurrentUserRoleBadge"),
   LogoutButton: document.getElementById("LogoutButton"),
+
   NavServers: document.getElementById("NavServers"),
   NavTemplates: document.getElementById("NavTemplates"),
+  NavUsersItem: document.getElementById("NavUsersItem"),
+  NavUsers: document.getElementById("NavUsers"),
   NavSystem: document.getElementById("NavSystem"),
   NavServersBadge: document.getElementById("NavServersBadge"),
   NavTemplatesBadge: document.getElementById("NavTemplatesBadge"),
+  NavUsersBadge: document.getElementById("NavUsersBadge"),
+
   SectionServers: document.getElementById("SectionServers"),
+  SectionServerDetail: document.getElementById("SectionServerDetail"),
+  SectionUsers: document.getElementById("SectionUsers"),
   SectionTemplates: document.getElementById("SectionTemplates"),
   SectionSystem: document.getElementById("SectionSystem"),
+
   PageTitle: document.getElementById("PageTitle"),
+  TopNavbarActions: document.getElementById("TopNavbarActions"),
+  RefreshButton: document.getElementById("RefreshButton"),
+  OpenDeployModalButton: document.getElementById("OpenDeployModalButton"),
+
   DockerStatusBadge: document.getElementById("DockerStatusBadge"),
   DockerSocketText: document.getElementById("DockerSocketText"),
   HostPlatformSidebar: document.getElementById("HostPlatformSidebar"),
+
   TotalContainersCount: document.getElementById("TotalContainersCount"),
   RunningContainersCount: document.getElementById("RunningContainersCount"),
   StoppedContainersCount: document.getElementById("StoppedContainersCount"),
   TemplatesAvailableCount: document.getElementById("TemplatesAvailableCount"),
   SearchServersInput: document.getElementById("SearchServersInput"),
   ServersTableBody: document.getElementById("ServersTableBody"),
-  TemplatesGrid: document.getElementById("TemplatesGrid"),
-  HostInfoTableBody: document.getElementById("HostInfoTableBody"),
-  DockerDiagTableBody: document.getElementById("DockerDiagTableBody"),
-  RefreshButton: document.getElementById("RefreshButton"),
-  OpenDeployModalButton: document.getElementById("OpenDeployModalButton"),
+
+  DetailServerTitle: document.getElementById("DetailServerTitle"),
+  DetailStatusBadge: document.getElementById("DetailStatusBadge"),
+  DetailTemplateBadge: document.getElementById("DetailTemplateBadge"),
+  DetailServerId: document.getElementById("DetailServerId"),
+  DetailContainerId: document.getElementById("DetailContainerId"),
+  ServerDetailBackBtn: document.getElementById("ServerDetailBackBtn"),
+  DetailStartBtn: document.getElementById("DetailStartBtn"),
+  DetailStopBtn: document.getElementById("DetailStopBtn"),
+  DetailRestartBtn: document.getElementById("DetailRestartBtn"),
+  DetailKillBtn: document.getElementById("DetailKillBtn"),
+  DetailDeleteBtn: document.getElementById("DetailDeleteBtn"),
+  ServerDetailTabs: document.getElementById("ServerDetailTabs"),
+
+  DetailTabConsole: document.getElementById("DetailTabConsole"),
+  DetailCpuMetric: document.getElementById("DetailCpuMetric"),
+  DetailRamMetric: document.getElementById("DetailRamMetric"),
+  DetailConsoleAutoscroll: document.getElementById("DetailConsoleAutoscroll"),
+  DetailConsoleClearBtn: document.getElementById("DetailConsoleClearBtn"),
+  DetailTerminalOutput: document.getElementById("DetailTerminalOutput"),
+  DetailTerminalForm: document.getElementById("DetailTerminalForm"),
+  DetailTerminalInput: document.getElementById("DetailTerminalInput"),
+
+  DetailTabFiles: document.getElementById("DetailTabFiles"),
+  DetailFilesCurrentPath: document.getElementById("DetailFilesCurrentPath"),
+  DetailFilesRefreshBtn: document.getElementById("DetailFilesRefreshBtn"),
+  DetailFilesNewFileBtn: document.getElementById("DetailFilesNewFileBtn"),
+  DetailFilesTableBody: document.getElementById("DetailFilesTableBody"),
+
+  DetailTabConfig: document.getElementById("DetailTabConfig"),
+  DetailEnvVarsContainer: document.getElementById("DetailEnvVarsContainer"),
+  DetailAddEnvVarBtn: document.getElementById("DetailAddEnvVarBtn"),
+  DetailAutoRestartSwitch: document.getElementById("DetailAutoRestartSwitch"),
+  DetailSaveConfigBtn: document.getElementById("DetailSaveConfigBtn"),
+  DetailPortsContainer: document.getElementById("DetailPortsContainer"),
+
+  DetailTabDocker: document.getElementById("DetailTabDocker"),
+  DetailDockerInspectPre: document.getElementById("DetailDockerInspectPre"),
+  DetailCopyInspectBtn: document.getElementById("DetailCopyInspectBtn"),
+
+  UsersTotalCount: document.getElementById("UsersTotalCount"),
+  UsersAdminCount: document.getElementById("UsersAdminCount"),
+  UsersStandardCount: document.getElementById("UsersStandardCount"),
+  UsersTableBody: document.getElementById("UsersTableBody"),
+  OpenCreateUserModalBtn: document.getElementById("OpenCreateUserModalBtn"),
+  CreateUserModal: document.getElementById("CreateUserModal"),
+  CreateUserForm: document.getElementById("CreateUserForm"),
+  CreateUserErrorAlert: document.getElementById("CreateUserErrorAlert"),
+  CreateUsernameInput: document.getElementById("CreateUsernameInput"),
+  CreatePasswordInput: document.getElementById("CreatePasswordInput"),
+  CreateRoleSelect: document.getElementById("CreateRoleSelect"),
+  CreateUserSubmitBtn: document.getElementById("CreateUserSubmitBtn"),
+
+  UserWorkloadsModal: document.getElementById("UserWorkloadsModal"),
+  UserWorkloadsModalUsername: document.getElementById("UserWorkloadsModalUsername"),
+  UserWorkloadsTableBody: document.getElementById("UserWorkloadsTableBody"),
+
+  FileEditorModal: document.getElementById("FileEditorModal"),
+  FileEditorPathLabel: document.getElementById("FileEditorPathLabel"),
+  FileEditorSaveBtn: document.getElementById("FileEditorSaveBtn"),
+  FileEditorTextarea: document.getElementById("FileEditorTextarea"),
+
+  NewFileModal: document.getElementById("NewFileModal"),
+  NewFileForm: document.getElementById("NewFileForm"),
+  NewFileNameInput: document.getElementById("NewFileNameInput"),
+  NewFileInitialContentInput: document.getElementById("NewFileInitialContentInput"),
+  NewFileSubmitBtn: document.getElementById("NewFileSubmitBtn"),
+
   DeployModal: document.getElementById("DeployModal"),
   DeployServerForm: document.getElementById("DeployServerForm"),
   DeployNameInput: document.getElementById("DeployNameInput"),
@@ -55,14 +137,10 @@ const Elements = {
   DeployDynamicFields: document.getElementById("DeployDynamicFields"),
   DeployHostPortInput: document.getElementById("DeployHostPortInput"),
   DeployAutoRestartInput: document.getElementById("DeployAutoRestartInput"),
-  ConsoleModal: document.getElementById("ConsoleModal"),
-  ConsoleInstanceTitle: document.getElementById("ConsoleInstanceTitle"),
-  ConsoleStatusBadge: document.getElementById("ConsoleStatusBadge"),
-  ConsoleCpuMetric: document.getElementById("ConsoleCpuMetric"),
-  ConsoleRamMetric: document.getElementById("ConsoleRamMetric"),
-  ConsoleTerminal: document.getElementById("ConsoleTerminal"),
-  ConsoleCommandForm: document.getElementById("ConsoleCommandForm"),
-  ConsoleCommandInput: document.getElementById("ConsoleCommandInput"),
+
+  TemplatesGrid: document.getElementById("TemplatesGrid"),
+  HostInfoTableBody: document.getElementById("HostInfoTableBody"),
+  DockerDiagTableBody: document.getElementById("DockerDiagTableBody"),
 };
 
 function GetBootstrapModal(element) {
@@ -80,6 +158,71 @@ function ShowAuthError(message) {
 function HideAuthError() {
   Elements.AuthErrorAlert.classList.add("d-none");
   Elements.AuthErrorAlert.textContent = "";
+}
+
+function ParseAnsiToHtml(rawText) {
+  if (!rawText) return "";
+
+  const escaped = EscapeHtml(rawText);
+
+  let activeClasses = [];
+  const tokens = escaped.split(/(\x1b\[[0-9;]*m|\x1b\[\?[0-9;]*[a-zA-Z]|\x1b\[[0-9;]*[a-zA-Z]|\r\n|\r|\n)/);
+  let html = "";
+
+  for (const token of tokens) {
+    if (!token) continue;
+
+    if (token.startsWith("\x1b[")) {
+      if (token.endsWith("m")) {
+        const paramStr = token.slice(2, -1);
+        const codes = paramStr ? paramStr.split(";").map(Number) : [0];
+
+        for (const code of codes) {
+          if (code === 0) {
+            activeClasses = [];
+          } else if (code === 1) {
+            if (!activeClasses.includes("ansi-bold")) activeClasses.push("ansi-bold");
+          } else if (code === 2) {
+            if (!activeClasses.includes("ansi-dim")) activeClasses.push("ansi-dim");
+          } else if (code === 3) {
+            if (!activeClasses.includes("ansi-italic")) activeClasses.push("ansi-italic");
+          } else if (code === 4) {
+            if (!activeClasses.includes("ansi-underline")) activeClasses.push("ansi-underline");
+          } else if (code === 22) {
+            activeClasses = activeClasses.filter((c) => c !== "ansi-bold" && c !== "ansi-dim");
+          } else if (code === 23) {
+            activeClasses = activeClasses.filter((c) => c !== "ansi-italic");
+          } else if (code === 24) {
+            activeClasses = activeClasses.filter((c) => c !== "ansi-underline");
+          } else if (code >= 30 && code <= 37) {
+            const colorNames = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
+            activeClasses = activeClasses.filter((c) => !c.startsWith("ansi-red") && !c.startsWith("ansi-green") && !c.startsWith("ansi-yellow") && !c.startsWith("ansi-blue") && !c.startsWith("ansi-magenta") && !c.startsWith("ansi-cyan") && !c.startsWith("ansi-white") && !c.startsWith("ansi-black") && !c.startsWith("ansi-bright-"));
+            activeClasses.push(`ansi-${colorNames[code - 30]}`);
+          } else if (code === 39) {
+            activeClasses = activeClasses.filter((c) => !c.startsWith("ansi-red") && !c.startsWith("ansi-green") && !c.startsWith("ansi-yellow") && !c.startsWith("ansi-blue") && !c.startsWith("ansi-magenta") && !c.startsWith("ansi-cyan") && !c.startsWith("ansi-white") && !c.startsWith("ansi-black") && !c.startsWith("ansi-bright-"));
+          } else if (code >= 90 && code <= 97) {
+            const colorNames = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
+            activeClasses = activeClasses.filter((c) => !c.startsWith("ansi-red") && !c.startsWith("ansi-green") && !c.startsWith("ansi-yellow") && !c.startsWith("ansi-blue") && !c.startsWith("ansi-magenta") && !c.startsWith("ansi-cyan") && !c.startsWith("ansi-white") && !c.startsWith("ansi-black") && !c.startsWith("ansi-bright-"));
+            activeClasses.push(`ansi-bright-${colorNames[code - 90]}`);
+          }
+        }
+      }
+      continue;
+    }
+
+    if (token === "\r" || token === "\r\n" || token === "\n") {
+      html += "\n";
+      continue;
+    }
+
+    if (activeClasses.length > 0) {
+      html += `<span class="${activeClasses.join(" ")}">${token}</span>`;
+    } else {
+      html += token;
+    }
+  }
+
+  return html;
 }
 
 async function CheckAuthentication() {
@@ -123,6 +266,13 @@ function OnAuthenticated() {
   Elements.AuthOverlay.classList.add("hidden");
   Elements.AppWrapper.classList.remove("hidden");
   Elements.CurrentUsernameText.textContent = CurrentUser ? CurrentUser.Username : "Admin";
+  Elements.CurrentUserRoleBadge.textContent = CurrentUser?.Role === "admin" ? "Admin" : "User";
+
+  if (CurrentUser?.Role === "admin") {
+    Elements.NavUsersItem.classList.remove("d-none");
+  } else {
+    Elements.NavUsersItem.classList.add("d-none");
+  }
 
   InitializeDashboard();
 }
@@ -224,15 +374,19 @@ function InitializeDashboard() {
 
   Promise.all([FetchSystemStatus(), FetchTemplates()]).then(() => {
     FetchServers();
+    if (CurrentUser?.Role === "admin") {
+      FetchUsers();
+    }
   });
 
-  PollingIntervals.push(setInterval(FetchServers, 4000));
+  PollingIntervals.push(setInterval(() => {
+    if (!ActiveDetailServerId) {
+      FetchServers();
+    } else {
+      FetchSingleServer(ActiveDetailServerId);
+    }
+  }, 4000));
   PollingIntervals.push(setInterval(FetchSystemStatus, 10000));
-
-  Elements.ConsoleModal.addEventListener("hidden.bs.modal", () => {
-    CloseWebSockets();
-    ActiveConsoleServerId = null;
-  });
 }
 
 function SetupNavigation() {
@@ -246,26 +400,61 @@ function SetupNavigation() {
     SwitchView("Templates");
   });
 
+  Elements.NavUsers.addEventListener("click", (e) => {
+    e.preventDefault();
+    SwitchView("Users");
+  });
+
   Elements.NavSystem.addEventListener("click", (e) => {
     e.preventDefault();
     SwitchView("System");
   });
+
+  Elements.ServerDetailBackBtn.addEventListener("click", () => {
+    CloseWebSockets();
+    ActiveDetailServerId = null;
+    SwitchView("Servers");
+  });
+
+  const tabLinks = Elements.ServerDetailTabs.querySelectorAll("a.nav-link");
+  for (const tabLink of tabLinks) {
+    tabLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      const tabName = tabLink.dataset.tab;
+      SwitchDetailTab(tabName);
+    });
+  }
 }
 
 function SwitchView(viewName) {
   Elements.NavServers.classList.remove("active");
   Elements.NavTemplates.classList.remove("active");
+  Elements.NavUsers.classList.remove("active");
   Elements.NavSystem.classList.remove("active");
 
   Elements.SectionServers.classList.add("d-none");
+  Elements.SectionServerDetail.classList.add("d-none");
+  Elements.SectionUsers.classList.add("d-none");
   Elements.SectionTemplates.classList.add("d-none");
   Elements.SectionSystem.classList.add("d-none");
+
+  Elements.TopNavbarActions.classList.remove("d-none");
 
   if (viewName === "Servers") {
     Elements.NavServers.classList.add("active");
     Elements.SectionServers.classList.remove("d-none");
     Elements.PageTitle.textContent = "Container Instances";
     FetchServers();
+  } else if (viewName === "ServerDetail") {
+    Elements.NavServers.classList.add("active");
+    Elements.SectionServerDetail.classList.remove("d-none");
+    Elements.PageTitle.textContent = "Server Control Panel";
+    Elements.TopNavbarActions.classList.add("d-none");
+  } else if (viewName === "Users") {
+    Elements.NavUsers.classList.add("active");
+    Elements.SectionUsers.classList.remove("d-none");
+    Elements.PageTitle.textContent = "System User Management";
+    FetchUsers();
   } else if (viewName === "Templates") {
     Elements.NavTemplates.classList.add("active");
     Elements.SectionTemplates.classList.remove("d-none");
@@ -279,17 +468,79 @@ function SwitchView(viewName) {
   }
 }
 
+function SwitchDetailTab(tabName) {
+  ActiveDetailTab = tabName;
+
+  const tabLinks = Elements.ServerDetailTabs.querySelectorAll("a.nav-link");
+  for (const link of tabLinks) {
+    link.classList.toggle("active", link.dataset.tab === tabName);
+  }
+
+  Elements.DetailTabConsole.classList.toggle("d-none", tabName !== "Console");
+  Elements.DetailTabFiles.classList.toggle("d-none", tabName !== "Files");
+  Elements.DetailTabConfig.classList.toggle("d-none", tabName !== "Config");
+  Elements.DetailTabDocker.classList.toggle("d-none", tabName !== "Docker");
+
+  if (tabName === "Files") {
+    FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+  } else if (tabName === "Docker") {
+    FetchServerInspect(ActiveDetailServerId);
+  } else if (tabName === "Config") {
+    RenderServerConfigTab();
+  }
+}
+
 function SetupEventListeners() {
   Elements.RefreshButton.addEventListener("click", () => {
     FetchServers();
     FetchSystemStatus();
+    if (CurrentUser?.Role === "admin") FetchUsers();
   });
 
   Elements.OpenDeployModalButton.addEventListener("click", OpenDeployModal);
   Elements.DeployTemplateSelect.addEventListener("change", HandleTemplateSelectionChange);
   Elements.DeployServerForm.addEventListener("submit", HandleDeploySubmit);
   Elements.SearchServersInput.addEventListener("input", () => RenderServersTable());
-  Elements.ConsoleCommandForm.addEventListener("submit", HandleConsoleCommandSubmit);
+
+  Elements.DetailTerminalForm.addEventListener("submit", HandleTerminalCommandSubmit);
+  Elements.DetailConsoleClearBtn.addEventListener("click", () => {
+    Elements.DetailTerminalOutput.innerHTML = "";
+  });
+
+  Elements.DetailStartBtn.addEventListener("click", () => HandleServerAction(ActiveDetailServerId, "start"));
+  Elements.DetailStopBtn.addEventListener("click", () => HandleServerAction(ActiveDetailServerId, "stop"));
+  Elements.DetailRestartBtn.addEventListener("click", () => HandleServerAction(ActiveDetailServerId, "restart"));
+  Elements.DetailKillBtn.addEventListener("click", () => HandleServerAction(ActiveDetailServerId, "kill"));
+  Elements.DetailDeleteBtn.addEventListener("click", async () => {
+    if (confirm("Are you sure you want to permanently delete this container and its volume data?")) {
+      await DeleteServer(ActiveDetailServerId);
+      ActiveDetailServerId = null;
+      SwitchView("Servers");
+    }
+  });
+
+  Elements.DetailFilesRefreshBtn.addEventListener("click", () => {
+    FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+  });
+  Elements.DetailFilesNewFileBtn.addEventListener("click", OpenNewFileModal);
+  Elements.NewFileForm.addEventListener("submit", HandleNewFileSubmit);
+  Elements.FileEditorSaveBtn.addEventListener("click", HandleFileEditorSave);
+
+  Elements.DetailAddEnvVarBtn.addEventListener("click", () => {
+    AddEnvVarRow("", "");
+  });
+  Elements.DetailSaveConfigBtn.addEventListener("click", HandleSaveServerConfig);
+
+  Elements.DetailCopyInspectBtn.addEventListener("click", () => {
+    navigator.clipboard.writeText(Elements.DetailDockerInspectPre.textContent);
+    Elements.DetailCopyInspectBtn.innerHTML = `<i class="bi bi-check2 me-1"></i> Copied!`;
+    setTimeout(() => {
+      Elements.DetailCopyInspectBtn.innerHTML = `<i class="bi bi-clipboard me-1"></i> Copy JSON`;
+    }, 2000);
+  });
+
+  Elements.OpenCreateUserModalBtn.addEventListener("click", OpenCreateUserModal);
+  Elements.CreateUserForm.addEventListener("submit", HandleCreateUserSubmit);
 }
 
 async function FetchSystemStatus() {
@@ -389,7 +640,7 @@ function HandleTemplateSelectionChange() {
     mb.className = "mb-3";
 
     const label = document.createElement("label");
-    label.className = "form-label small fw-semibold";
+    label.className = "form-label small fw-medium";
     label.textContent = field.Label;
     if (field.Required) label.textContent += " *";
     mb.appendChild(label);
@@ -441,7 +692,7 @@ function RenderTemplatesView() {
             <span class="badge text-bg-secondary font-monospace">${EscapeHtml(t.Category)}</span>
             <span class="badge text-bg-dark border font-monospace">${EscapeHtml(t.DefaultImage)}</span>
           </div>
-          <h5 class="card-title fw-bold fs-6 mb-1">${EscapeHtml(t.Name)}</h5>
+          <h5 class="card-title fw-medium fs-6 mb-1">${EscapeHtml(t.Name)}</h5>
           <p class="card-text small text-body-secondary mb-3 flex-grow-1">${EscapeHtml(t.Description)}</p>
           <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-auto">
             <span class="small font-monospace text-body-tertiary">Mount: ${EscapeHtml(t.VolumeMountPath || "None")}</span>
@@ -470,6 +721,24 @@ async function FetchServers() {
     if (json.Success) {
       Servers = json.Data;
       RenderServersTable();
+    }
+  } catch {}
+}
+
+async function FetchSingleServer(serverId) {
+  try {
+    const res = await fetch(`/api/servers/${serverId}`);
+    if (res.status === 401) return;
+    const json = await res.json();
+    if (json.Success) {
+      const server = json.Data;
+      const idx = Servers.findIndex((s) => s.Id === server.Id);
+      if (idx !== -1) Servers[idx] = server;
+      else Servers.push(server);
+
+      if (ActiveDetailServerId === server.Id) {
+        UpdateDetailServerHeader(server);
+      }
     }
   } catch {}
 }
@@ -521,13 +790,15 @@ function RenderServersTable() {
 
     const portsText =
       server.Ports && server.Ports.length > 0
-        ? server.Ports.map((p) => `${p.HostPort}:${p.ContainerPort}/${p.Protocol}`).join(", ")
+        ? server.Ports.map((p) => `${p.HostPort}:${p.ContainerPort}`).join(", ")
         : "-";
 
     tr.innerHTML = `
       <td class="ps-3">
-        <div class="fw-bold text-body">${EscapeHtml(server.Name)}</div>
-        <div class="small font-monospace text-body-tertiary" style="font-size: 0.75rem;">${EscapeHtml(server.Id)}</div>
+        <a href="#" class="text-decoration-none fw-medium text-body TableServerLink" data-id="${server.Id}">
+          ${EscapeHtml(server.Name)}
+        </a>
+        <div class="small font-monospace text-body-tertiary" style="font-size: 0.73rem;">${EscapeHtml(server.Id)}</div>
       </td>
       <td>
         <span class="badge text-bg-dark border font-monospace">${EscapeHtml(templateLabel)}</span>
@@ -538,15 +809,16 @@ function RenderServersTable() {
       <td class="font-monospace small">${EscapeHtml(portsText)}</td>
       <td class="font-monospace small text-body-secondary">${server.ContainerId.slice(0, 12)}</td>
       <td class="text-end pe-3">
-        <div class="btn-group btn-group-sm">
+        <div class="d-inline-flex align-items-center gap-1">
+          <button class="btn btn-sm btn-outline-primary py-1 px-2" data-action="manage" data-id="${server.Id}">
+            <i class="bi bi-gear me-1"></i> Manage
+          </button>
           ${
             server.Status === "Running"
-              ? `<button class="btn btn-outline-warning" data-action="stop" data-id="${server.Id}" title="Stop Container"><i class="bi bi-stop-fill"></i></button>
-                 <button class="btn btn-outline-info" data-action="restart" data-id="${server.Id}" title="Restart Container"><i class="bi bi-arrow-repeat"></i></button>`
-              : `<button class="btn btn-outline-success" data-action="start" data-id="${server.Id}" title="Start Container"><i class="bi bi-play-fill"></i></button>`
+              ? `<button class="btn btn-ghost py-1 px-2 text-warning" data-action="stop" data-id="${server.Id}" title="Stop Container"><i class="bi bi-stop-fill"></i></button>`
+              : `<button class="btn btn-ghost py-1 px-2 text-success" data-action="start" data-id="${server.Id}" title="Start Container"><i class="bi bi-play-fill"></i></button>`
           }
-          <button class="btn btn-outline-primary" data-action="console" data-id="${server.Id}" title="Open Console"><i class="bi bi-terminal"></i></button>
-          <button class="btn btn-outline-danger" data-action="delete" data-id="${server.Id}" title="Delete Container"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-ghost-danger py-1 px-2" data-action="delete" data-id="${server.Id}" title="Delete Container"><i class="bi bi-trash"></i></button>
         </div>
       </td>
     `;
@@ -558,6 +830,14 @@ function RenderServersTable() {
 }
 
 function AttachTableActionListeners() {
+  const links = Elements.ServersTableBody.querySelectorAll(".TableServerLink");
+  for (const link of links) {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      OpenServerDetail(link.dataset.id);
+    });
+  }
+
   const buttons = Elements.ServersTableBody.querySelectorAll("button[data-action]");
   for (const btn of buttons) {
     btn.addEventListener("click", async (e) => {
@@ -565,26 +845,18 @@ function AttachTableActionListeners() {
       const action = target.dataset.action;
       const id = target.dataset.id;
 
-      if (action === "start") {
+      if (action === "manage") {
+        OpenServerDetail(id);
+      } else if (action === "start" || action === "stop" || action === "restart") {
         target.disabled = true;
-        await PostServerAction(id, "start");
-        await FetchServers();
-      } else if (action === "stop") {
-        target.disabled = true;
-        await PostServerAction(id, "stop");
-        await FetchServers();
-      } else if (action === "restart") {
-        target.disabled = true;
-        await PostServerAction(id, "restart");
+        await PostServerAction(id, action);
         await FetchServers();
       } else if (action === "delete") {
-        if (confirm("Are you sure you want to delete this container?")) {
+        if (confirm("Are you sure you want to delete this container instance?")) {
           target.disabled = true;
           await DeleteServer(id);
           await FetchServers();
         }
-      } else if (action === "console") {
-        OpenConsole(id);
       }
     });
   }
@@ -602,11 +874,608 @@ async function DeleteServer(id) {
   } catch {}
 }
 
+function OpenServerDetail(serverId) {
+  const server = Servers.find((s) => s.Id === serverId);
+  if (!server) return;
+
+  ActiveDetailServerId = serverId;
+  ActiveDetailSubPath = "";
+
+  UpdateDetailServerHeader(server);
+  SwitchView("ServerDetail");
+  SwitchDetailTab("Console");
+
+  ConnectWebSockets(serverId);
+}
+
+function UpdateDetailServerHeader(server) {
+  Elements.DetailServerTitle.textContent = server.Name;
+  Elements.DetailServerId.textContent = server.Id;
+  Elements.DetailContainerId.textContent = server.ContainerId.slice(0, 12);
+
+  const template = Templates.find((t) => t.Id === server.TemplateId);
+  Elements.DetailTemplateBadge.textContent = template ? template.Name : server.TemplateId;
+
+  let statusBadgeClass = "text-bg-secondary";
+  if (server.Status === "Running") statusBadgeClass = "text-bg-success";
+  else if (server.Status === "Starting" || server.Status === "Restarting")
+    statusBadgeClass = "text-bg-warning text-dark";
+  else if (server.Status === "Error") statusBadgeClass = "text-bg-danger";
+
+  Elements.DetailStatusBadge.className = `badge ${statusBadgeClass}`;
+  Elements.DetailStatusBadge.textContent = server.Status;
+
+  Elements.DetailStartBtn.disabled = server.Status === "Running";
+  Elements.DetailStopBtn.disabled = server.Status !== "Running";
+}
+
+async function HandleServerAction(serverId, action) {
+  try {
+    await PostServerAction(serverId, action);
+    await FetchSingleServer(serverId);
+  } catch {}
+}
+
+function ConnectWebSockets(serverId) {
+  CloseWebSockets();
+
+  Elements.DetailTerminalOutput.innerHTML = `<span class="ansi-dim">Connecting to container terminal output stream...</span>\n`;
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const host = window.location.host;
+  const tokenQuery = CurrentAuthToken ? `?token=${encodeURIComponent(CurrentAuthToken)}` : "";
+
+  ConsoleSocket = new WebSocket(`${protocol}//${host}/ws/servers/${serverId}/console${tokenQuery}`);
+  ConsoleSocket.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.Type === "History") {
+        Elements.DetailTerminalOutput.innerHTML = ParseAnsiToHtml(msg.Data || "");
+        ScrollTerminalToBottom();
+      } else if (msg.Type === "Log" || msg.Type === "CommandOutput") {
+        Elements.DetailTerminalOutput.innerHTML += ParseAnsiToHtml(msg.Data || "");
+        ScrollTerminalToBottom();
+      } else if (msg.Type === "Error") {
+        Elements.DetailTerminalOutput.innerHTML += `\n<span class="ansi-red">[System Error] ${EscapeHtml(msg.Data)}</span>\n`;
+        ScrollTerminalToBottom();
+      }
+    } catch {
+      Elements.DetailTerminalOutput.innerHTML += ParseAnsiToHtml(event.data);
+      ScrollTerminalToBottom();
+    }
+  };
+
+  StatsSocket = new WebSocket(`${protocol}//${host}/ws/servers/${serverId}/stats${tokenQuery}`);
+  StatsSocket.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.Type === "Stats" && msg.Data) {
+        const stats = msg.Data;
+        Elements.DetailCpuMetric.textContent = `CPU: ${stats.CpuPercentage}%`;
+        const memMb = (stats.MemoryUsageBytes / (1024 * 1024)).toFixed(1);
+        Elements.DetailRamMetric.textContent = `RAM: ${memMb} MB`;
+      }
+    } catch {}
+  };
+}
+
+function ScrollTerminalToBottom() {
+  if (Elements.DetailConsoleAutoscroll.checked) {
+    Elements.DetailTerminalOutput.scrollTop = Elements.DetailTerminalOutput.scrollHeight;
+  }
+}
+
+function CloseWebSockets() {
+  if (ConsoleSocket) {
+    ConsoleSocket.close();
+    ConsoleSocket = null;
+  }
+  if (StatsSocket) {
+    StatsSocket.close();
+    StatsSocket = null;
+  }
+}
+
+function HandleTerminalCommandSubmit(e) {
+  e.preventDefault();
+  const cmd = Elements.DetailTerminalInput.value.trim();
+  if (!cmd || !ConsoleSocket || ConsoleSocket.readyState !== WebSocket.OPEN) return;
+
+  ConsoleSocket.send(JSON.stringify({ Command: cmd }));
+  Elements.DetailTerminalInput.value = "";
+}
+
+async function FetchServerFiles(serverId, subPath = "") {
+  ActiveDetailSubPath = subPath;
+  Elements.DetailFilesCurrentPath.textContent = subPath ? `/${subPath}` : "/";
+
+  try {
+    const res = await fetch(`/api/servers/${serverId}/files?SubPath=${encodeURIComponent(subPath)}`);
+    const json = await res.json();
+    if (json.Success) {
+      RenderServerFilesTable(json.Data);
+    }
+  } catch {
+    Elements.DetailFilesTableBody.innerHTML = `
+      <tr><td colspan="4" class="text-center py-4 text-danger">Failed to load volume files.</td></tr>
+    `;
+  }
+}
+
+function RenderServerFilesTable(files) {
+  Elements.DetailFilesTableBody.innerHTML = "";
+
+  if (ActiveDetailSubPath) {
+    const trUp = document.createElement("tr");
+    trUp.innerHTML = `
+      <td colspan="4" class="ps-3 py-2">
+        <a href="#" class="text-decoration-none text-body small fw-medium" id="DirGoUpLink">
+          <i class="bi bi-arrow-90deg-up me-2 text-primary"></i> .. (Parent Directory)
+        </a>
+      </td>
+    `;
+    Elements.DetailFilesTableBody.appendChild(trUp);
+    trUp.querySelector("#DirGoUpLink").addEventListener("click", (e) => {
+      e.preventDefault();
+      const segments = ActiveDetailSubPath.split("/").filter(Boolean);
+      segments.pop();
+      FetchServerFiles(ActiveDetailServerId, segments.join("/"));
+    });
+  }
+
+  if (files.length === 0) {
+    const emptyRow = document.createElement("tr");
+    emptyRow.innerHTML = `
+      <td colspan="4" class="text-center py-4 text-body-secondary">
+        Directory is empty.
+      </td>
+    `;
+    Elements.DetailFilesTableBody.appendChild(emptyRow);
+    return;
+  }
+
+  const sorted = files.sort((a, b) => {
+    if (a.IsDirectory && !b.IsDirectory) return -1;
+    if (!a.IsDirectory && b.IsDirectory) return 1;
+    return a.Name.localeCompare(b.Name);
+  });
+
+  for (const item of sorted) {
+    const tr = document.createElement("tr");
+    const relativePath = ActiveDetailSubPath ? `${ActiveDetailSubPath}/${item.Name}` : item.Name;
+    const formattedSize = item.IsDirectory ? "-" : FormatBytes(item.Size);
+
+    tr.innerHTML = `
+      <td class="ps-3 py-2">
+        <a href="#" class="text-decoration-none text-body small font-monospace FileItemLink" data-is-dir="${item.IsDirectory}" data-path="${EscapeHtml(relativePath)}">
+          <i class="bi ${item.IsDirectory ? "bi-folder2 text-warning" : "bi-file-earmark-text text-primary"} me-2"></i>
+          ${EscapeHtml(item.Name)}
+        </a>
+      </td>
+      <td class="small text-body-secondary py-2">${item.IsDirectory ? "Folder" : "File"}</td>
+      <td class="small font-monospace text-body-secondary py-2">${formattedSize}</td>
+      <td class="text-end pe-3 py-2">
+        <div class="d-inline-flex align-items-center gap-1">
+          ${
+            !item.IsDirectory
+              ? `<button class="btn btn-ghost py-1 px-2" data-action="edit-file" data-path="${EscapeHtml(relativePath)}" title="Edit File"><i class="bi bi-pencil"></i></button>`
+              : ""
+          }
+          <button class="btn btn-ghost-danger py-1 px-2" data-action="delete-file" data-path="${EscapeHtml(relativePath)}" title="Delete"><i class="bi bi-trash"></i></button>
+        </div>
+      </td>
+    `;
+
+    Elements.DetailFilesTableBody.appendChild(tr);
+  }
+
+  const itemLinks = Elements.DetailFilesTableBody.querySelectorAll(".FileItemLink");
+  for (const link of itemLinks) {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      const isDir = link.dataset.isDir === "true";
+      const itemPath = link.dataset.path;
+      if (isDir) {
+        FetchServerFiles(ActiveDetailServerId, itemPath);
+      } else {
+        OpenFileEditor(ActiveDetailServerId, itemPath);
+      }
+    });
+  }
+
+  const actionButtons = Elements.DetailFilesTableBody.querySelectorAll("button[data-action]");
+  for (const btn of actionButtons) {
+    btn.addEventListener("click", async (e) => {
+      const action = btn.dataset.action;
+      const filePath = btn.dataset.path;
+
+      if (action === "edit-file") {
+        OpenFileEditor(ActiveDetailServerId, filePath);
+      } else if (action === "delete-file") {
+        if (confirm(`Delete '${filePath}'?`)) {
+          await DeleteServerFile(ActiveDetailServerId, filePath);
+          FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+        }
+      }
+    });
+  }
+}
+
+async function OpenFileEditor(serverId, filePath) {
+  ActiveEditFilePath = filePath;
+  Elements.FileEditorPathLabel.textContent = `/${filePath}`;
+  Elements.FileEditorTextarea.value = "Loading file content...";
+
+  const modal = GetBootstrapModal(Elements.FileEditorModal);
+  if (modal) modal.show();
+
+  try {
+    const res = await fetch(`/api/servers/${serverId}/files/content?FilePath=${encodeURIComponent(filePath)}`);
+    const json = await res.json();
+    if (json.Success) {
+      Elements.FileEditorTextarea.value = json.Data.Content;
+    } else {
+      Elements.FileEditorTextarea.value = `Error: ${json.Error || "Failed to read file"}`;
+    }
+  } catch {
+    Elements.FileEditorTextarea.value = "Network error loading file content.";
+  }
+}
+
+async function HandleFileEditorSave() {
+  Elements.FileEditorSaveBtn.disabled = true;
+  Elements.FileEditorSaveBtn.innerHTML = `<i class="bi bi-arrow-repeat me-1"></i> Saving...`;
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/files/content`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        FilePath: ActiveEditFilePath,
+        Content: Elements.FileEditorTextarea.value,
+      }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      Elements.FileEditorSaveBtn.innerHTML = `<i class="bi bi-check2 me-1"></i> Saved!`;
+      setTimeout(() => {
+        Elements.FileEditorSaveBtn.innerHTML = `<i class="bi bi-save me-1"></i> Save Changes`;
+        Elements.FileEditorSaveBtn.disabled = false;
+      }, 1500);
+    } else {
+      alert("Save failed: " + (json.Error || "Unknown error"));
+      Elements.FileEditorSaveBtn.disabled = false;
+    }
+  } catch {
+    alert("Network error saving file.");
+    Elements.FileEditorSaveBtn.disabled = false;
+  }
+}
+
+async function DeleteServerFile(serverId, filePath) {
+  try {
+    await fetch(`/api/servers/${serverId}/files?FilePath=${encodeURIComponent(filePath)}`, {
+      method: "DELETE",
+    });
+  } catch {}
+}
+
+function OpenNewFileModal() {
+  Elements.NewFileForm.reset();
+  const modal = GetBootstrapModal(Elements.NewFileModal);
+  if (modal) modal.show();
+}
+
+async function HandleNewFileSubmit(e) {
+  e.preventDefault();
+  const rawName = Elements.NewFileNameInput.value.trim();
+  const content = Elements.NewFileInitialContentInput.value;
+
+  const targetPath = ActiveDetailSubPath ? `${ActiveDetailSubPath}/${rawName}` : rawName;
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/files/content`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ FilePath: targetPath, Content: content }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      const modal = GetBootstrapModal(Elements.NewFileModal);
+      if (modal) modal.hide();
+      FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+    } else {
+      alert("Failed to create file: " + json.Error);
+    }
+  } catch {
+    alert("Network error creating file");
+  }
+}
+
+function RenderServerConfigTab() {
+  const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+  if (!server) return;
+
+  Elements.DetailEnvVarsContainer.innerHTML = "";
+  const env = server.EnvironmentVariables || {};
+
+  for (const [key, value] of Object.entries(env)) {
+    AddEnvVarRow(key, value);
+  }
+
+  Elements.DetailAutoRestartSwitch.checked = server.AutoRestart !== false;
+
+  Elements.DetailPortsContainer.innerHTML = "";
+  if (server.Ports && server.Ports.length > 0) {
+    for (const p of server.Ports) {
+      const pDiv = document.createElement("div");
+      pDiv.className = "d-flex align-items-center justify-content-between p-2 rounded border mb-2 font-monospace small";
+      pDiv.innerHTML = `
+        <span>Host: <strong>${p.HostPort}</strong></span>
+        <span>&rarr;</span>
+        <span>Container: <strong>${p.ContainerPort}/${p.Protocol}</strong></span>
+      `;
+      Elements.DetailPortsContainer.appendChild(pDiv);
+    }
+  } else {
+    Elements.DetailPortsContainer.innerHTML = `<span class="small text-body-secondary">No exposed ports configured.</span>`;
+  }
+}
+
+function AddEnvVarRow(key = "", value = "") {
+  const row = document.createElement("div");
+  row.className = "d-flex align-items-center gap-2 EnvVarRow";
+  row.innerHTML = `
+    <input type="text" class="form-control form-control-sm font-monospace EnvVarKey" placeholder="KEY" value="${EscapeHtml(key)}" style="max-width: 200px;">
+    <input type="text" class="form-control form-control-sm font-monospace EnvVarValue" placeholder="VALUE" value="${EscapeHtml(value)}">
+    <button type="button" class="btn btn-ghost-danger btn-sm p-1 px-2 RemoveEnvVarBtn"><i class="bi bi-x-lg"></i></button>
+  `;
+
+  row.querySelector(".RemoveEnvVarBtn").addEventListener("click", () => {
+    row.remove();
+  });
+
+  Elements.DetailEnvVarsContainer.appendChild(row);
+}
+
+async function HandleSaveServerConfig() {
+  Elements.DetailSaveConfigBtn.disabled = true;
+  Elements.DetailSaveConfigBtn.innerHTML = `<i class="bi bi-arrow-repeat me-1"></i> Saving...`;
+
+  const rows = Elements.DetailEnvVarsContainer.querySelectorAll(".EnvVarRow");
+  const env = {};
+  for (const row of rows) {
+    const k = row.querySelector(".EnvVarKey").value.trim();
+    const v = row.querySelector(".EnvVarValue").value;
+    if (k) env[k] = v;
+  }
+
+  const autoRestart = Elements.DetailAutoRestartSwitch.checked;
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/config`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        EnvironmentVariables: env,
+        AutoRestart: autoRestart,
+      }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      Elements.DetailSaveConfigBtn.innerHTML = `<i class="bi bi-check2 me-1"></i> Saved!`;
+      await FetchSingleServer(ActiveDetailServerId);
+      setTimeout(() => {
+        Elements.DetailSaveConfigBtn.innerHTML = `<i class="bi bi-check2 me-1"></i> Save Configuration`;
+        Elements.DetailSaveConfigBtn.disabled = false;
+      }, 1500);
+    } else {
+      alert("Failed to update config: " + json.Error);
+      Elements.DetailSaveConfigBtn.disabled = false;
+    }
+  } catch {
+    alert("Network error updating config.");
+    Elements.DetailSaveConfigBtn.disabled = false;
+  }
+}
+
+async function FetchServerInspect(serverId) {
+  Elements.DetailDockerInspectPre.textContent = "Inspecting container metadata...";
+
+  try {
+    const res = await fetch(`/api/servers/${serverId}/inspect`);
+    const json = await res.json();
+    if (json.Success) {
+      Elements.DetailDockerInspectPre.textContent = JSON.stringify(json.Data, null, 2);
+    } else {
+      Elements.DetailDockerInspectPre.textContent = `Inspect Error: ${json.Error || "Failed to inspect container"}`;
+    }
+  } catch {
+    Elements.DetailDockerInspectPre.textContent = "Network error loading inspect data.";
+  }
+}
+
+async function FetchUsers() {
+  try {
+    const res = await fetch("/api/users");
+    if (res.status === 401) return;
+    const json = await res.json();
+    if (json.Success) {
+      UsersList = json.Data;
+      RenderUsersTable();
+    }
+  } catch {}
+}
+
+function RenderUsersTable() {
+  Elements.NavUsersBadge.textContent = String(UsersList.length);
+  Elements.UsersTotalCount.textContent = String(UsersList.length);
+
+  const adminCount = UsersList.filter((u) => u.Role === "admin").length;
+  const standardCount = UsersList.filter((u) => u.Role !== "admin").length;
+
+  Elements.UsersAdminCount.textContent = String(adminCount);
+  Elements.UsersStandardCount.textContent = String(standardCount);
+
+  if (UsersList.length === 0) {
+    Elements.UsersTableBody.innerHTML = `
+      <tr><td colspan="5" class="text-center py-5 text-body-secondary">No user accounts found.</td></tr>
+    `;
+    return;
+  }
+
+  Elements.UsersTableBody.innerHTML = "";
+  for (const user of UsersList) {
+    const tr = document.createElement("tr");
+
+    const roleBadge =
+      user.Role === "admin"
+        ? `<span class="badge text-bg-primary font-monospace">admin</span>`
+        : `<span class="badge text-bg-secondary font-monospace">user</span>`;
+
+    const isSelf = CurrentUser && CurrentUser.Id === user.Id;
+
+    tr.innerHTML = `
+      <td class="ps-3 py-2">
+        <div class="fw-medium text-body">${EscapeHtml(user.Username)} ${isSelf ? `<span class="badge text-bg-dark border ms-1 small">You</span>` : ""}</div>
+        <div class="small font-monospace text-body-tertiary" style="font-size: 0.72rem;">${EscapeHtml(user.Id)}</div>
+      </td>
+      <td class="py-2">${roleBadge}</td>
+      <td class="py-2">
+        <span class="badge text-bg-dark border font-monospace">${user.ServerCount || 0} instances</span>
+      </td>
+      <td class="small font-monospace text-body-secondary py-2">${EscapeHtml(user.CreatedAt || "-")}</td>
+      <td class="text-end pe-3 py-2">
+        <div class="d-inline-flex align-items-center gap-1">
+          <button class="btn btn-sm btn-outline-secondary py-1 px-2" data-action="view-servers" data-id="${user.Id}" data-username="${EscapeHtml(user.Username)}" title="View Containers">
+            <i class="bi bi-hdd-stack me-1"></i> Workloads
+          </button>
+          ${
+            !isSelf
+              ? `<button class="btn btn-ghost-danger py-1 px-2" data-action="delete-user" data-id="${user.Id}" title="Delete User"><i class="bi bi-trash"></i></button>`
+              : ""
+          }
+        </div>
+      </td>
+    `;
+
+    Elements.UsersTableBody.appendChild(tr);
+  }
+
+  const buttons = Elements.UsersTableBody.querySelectorAll("button[data-action]");
+  for (const btn of buttons) {
+    btn.addEventListener("click", async (e) => {
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+      const username = btn.dataset.username;
+
+      if (action === "view-servers") {
+        OpenUserWorkloadsModal(id, username);
+      } else if (action === "delete-user") {
+        if (confirm("Are you sure you want to delete this user? Their assigned containers will remain intact.")) {
+          btn.disabled = true;
+          await DeleteUser(id);
+          await FetchUsers();
+        }
+      }
+    });
+  }
+}
+
+async function DeleteUser(userId) {
+  try {
+    await fetch(`/api/users/${userId}`, { method: "DELETE" });
+  } catch {}
+}
+
+async function OpenUserWorkloadsModal(userId, username) {
+  Elements.UserWorkloadsModalUsername.textContent = username;
+  Elements.UserWorkloadsTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-body-secondary">Loading workloads...</td></tr>`;
+
+  const modal = GetBootstrapModal(Elements.UserWorkloadsModal);
+  if (modal) modal.show();
+
+  try {
+    const res = await fetch(`/api/users/${userId}/servers`);
+    const json = await res.json();
+    if (json.Success) {
+      const servers = json.Data;
+      if (servers.length === 0) {
+        Elements.UserWorkloadsTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-body-secondary">No containers assigned to this user.</td></tr>`;
+        return;
+      }
+
+      Elements.UserWorkloadsTableBody.innerHTML = "";
+      for (const s of servers) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td class="ps-3 py-2 fw-medium">${EscapeHtml(s.Name)}</td>
+          <td class="py-2"><span class="badge text-bg-dark border font-monospace">${EscapeHtml(s.TemplateId)}</span></td>
+          <td class="py-2"><span class="badge ${s.Status === "Running" ? "text-bg-success" : "text-bg-secondary"}">${s.Status}</span></td>
+          <td class="text-end pe-3 py-2">
+            <button class="btn btn-sm btn-outline-primary py-0 px-2" data-server-id="${s.Id}">Manage</button>
+          </td>
+        `;
+
+        row.querySelector("button").addEventListener("click", () => {
+          if (modal) modal.hide();
+          OpenServerDetail(s.Id);
+        });
+
+        Elements.UserWorkloadsTableBody.appendChild(row);
+      }
+    }
+  } catch {
+    Elements.UserWorkloadsTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-danger">Failed to fetch workloads.</td></tr>`;
+  }
+}
+
+function OpenCreateUserModal() {
+  Elements.CreateUserForm.reset();
+  Elements.CreateUserErrorAlert.classList.add("d-none");
+  const modal = GetBootstrapModal(Elements.CreateUserModal);
+  if (modal) modal.show();
+}
+
+async function HandleCreateUserSubmit(e) {
+  e.preventDefault();
+  Elements.CreateUserErrorAlert.classList.add("d-none");
+
+  const username = Elements.CreateUsernameInput.value.trim();
+  const password = Elements.CreatePasswordInput.value;
+  const role = Elements.CreateRoleSelect.value;
+
+  Elements.CreateUserSubmitBtn.disabled = true;
+  Elements.CreateUserSubmitBtn.textContent = "Creating...";
+
+  try {
+    const res = await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Username: username, Password: password, Role: role }),
+    });
+
+    const json = await res.json();
+    if (json.Success) {
+      const modal = GetBootstrapModal(Elements.CreateUserModal);
+      if (modal) modal.hide();
+      await FetchUsers();
+    } else {
+      Elements.CreateUserErrorAlert.classList.remove("d-none");
+      Elements.CreateUserErrorAlert.textContent = json.Error || "Failed to create user";
+    }
+  } catch {
+    Elements.CreateUserErrorAlert.classList.remove("d-none");
+    Elements.CreateUserErrorAlert.textContent = "Network error creating user";
+  } finally {
+    Elements.CreateUserSubmitBtn.disabled = false;
+    Elements.CreateUserSubmitBtn.textContent = "Create Account";
+  }
+}
+
 function OpenDeployModal() {
   const modal = GetBootstrapModal(Elements.DeployModal);
-  if (modal) {
-    modal.show();
-  }
+  if (modal) modal.show();
 }
 
 async function HandleDeploySubmit(e) {
@@ -655,7 +1524,7 @@ async function HandleDeploySubmit(e) {
       await FetchServers();
       await PostServerAction(json.Data.Id, "start");
       await FetchServers();
-      OpenConsole(json.Data.Id);
+      OpenServerDetail(json.Data.Id);
     } else {
       alert("Deployment failed: " + JSON.stringify(json.Error));
     }
@@ -664,77 +1533,12 @@ async function HandleDeploySubmit(e) {
   }
 }
 
-function OpenConsole(serverId) {
-  const server = Servers.find((s) => s.Id === serverId);
-  if (!server) return;
-
-  ActiveConsoleServerId = serverId;
-  Elements.ConsoleInstanceTitle.textContent = `${server.Name} Console`;
-  Elements.ConsoleStatusBadge.textContent = server.Status;
-  Elements.ConsoleStatusBadge.className = `badge ${server.Status === "Running" ? "text-bg-success" : "text-bg-secondary"}`;
-  Elements.ConsoleTerminal.textContent = "Connecting to container terminal stream...\n";
-
-  const modal = GetBootstrapModal(Elements.ConsoleModal);
-  if (modal) {
-    modal.show();
-  }
-
-  CloseWebSockets();
-
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const host = window.location.host;
-  const tokenQuery = CurrentAuthToken ? `?token=${encodeURIComponent(CurrentAuthToken)}` : "";
-
-  ConsoleSocket = new WebSocket(`${protocol}//${host}/ws/servers/${serverId}/console${tokenQuery}`);
-  ConsoleSocket.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.Type === "History") {
-        Elements.ConsoleTerminal.textContent = msg.Data || "";
-        Elements.ConsoleTerminal.scrollTop = Elements.ConsoleTerminal.scrollHeight;
-      } else if (msg.Type === "Log" || msg.Type === "CommandOutput") {
-        Elements.ConsoleTerminal.textContent += msg.Data;
-        Elements.ConsoleTerminal.scrollTop = Elements.ConsoleTerminal.scrollHeight;
-      } else if (msg.Type === "Error") {
-        Elements.ConsoleTerminal.textContent += `\n[System Error] ${msg.Data}\n`;
-      }
-    } catch {
-      Elements.ConsoleTerminal.textContent += event.data;
-    }
-  };
-
-  StatsSocket = new WebSocket(`${protocol}//${host}/ws/servers/${serverId}/stats${tokenQuery}`);
-  StatsSocket.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.Type === "Stats" && msg.Data) {
-        const stats = msg.Data;
-        Elements.ConsoleCpuMetric.textContent = `CPU: ${stats.CpuPercentage}%`;
-        const memMb = (stats.MemoryUsageBytes / (1024 * 1024)).toFixed(1);
-        Elements.ConsoleRamMetric.textContent = `RAM: ${memMb} MB`;
-      }
-    } catch {}
-  };
-}
-
-function CloseWebSockets() {
-  if (ConsoleSocket) {
-    ConsoleSocket.close();
-    ConsoleSocket = null;
-  }
-  if (StatsSocket) {
-    StatsSocket.close();
-    StatsSocket = null;
-  }
-}
-
-function HandleConsoleCommandSubmit(e) {
-  e.preventDefault();
-  const cmd = Elements.ConsoleCommandInput.value.trim();
-  if (!cmd || !ConsoleSocket || ConsoleSocket.readyState !== WebSocket.OPEN) return;
-
-  ConsoleSocket.send(JSON.stringify({ Command: cmd }));
-  Elements.ConsoleCommandInput.value = "";
+function FormatBytes(bytes) {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
 function EscapeHtml(str) {
@@ -748,3 +1552,13 @@ function EscapeHtml(str) {
 
 SetupAuthEventListeners();
 CheckAuthentication();
+
+if (typeof window !== "undefined") {
+  window.QiR = {
+    OpenServerDetail,
+    SwitchView,
+    SwitchDetailTab,
+    FetchServers,
+    FetchUsers,
+  };
+}

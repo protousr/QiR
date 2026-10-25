@@ -9,6 +9,7 @@ import { AuthRoutes } from "./Web/Routes/AuthRoutes.js";
 import { ServerRoutes } from "./Web/Routes/ServerRoutes.js";
 import { TemplateRoutes } from "./Web/Routes/TemplateRoutes.js";
 import { SystemRoutes } from "./Web/Routes/SystemRoutes.js";
+import { UserRoutes } from "./Web/Routes/UserRoutes.js";
 import { ConsoleWebSocketRoute } from "./Web/WebSockets/ConsoleWebSocket.js";
 import { StatsWebSocketRoute } from "./Web/WebSockets/StatsWebSocket.js";
 import { GlobalErrorHandler } from "./Web/Middleware/ErrorHandler.js";
@@ -50,6 +51,7 @@ export async function BuildApp(): Promise<FastifyInstance> {
       await api.register(ServerRoutes);
       await api.register(TemplateRoutes);
       await api.register(SystemRoutes);
+      await api.register(UserRoutes);
     },
     { prefix: "/api" }
   );

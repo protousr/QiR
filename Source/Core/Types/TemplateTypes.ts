@@ -42,5 +42,6 @@ export interface ITemplate {
   readonly DefaultPorts: IPortMapping[];
   readonly Fields: ITemplateField[];
   readonly VolumeMountPath: string;
+  readonly InitialFiles?: Record<string, string>;
   BuildContainerConfig(input: ICreateServerInput, volumeHostPath: string): IContainerBuildConfig;
 }

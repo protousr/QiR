@@ -38,6 +38,7 @@ export class AuthService {
       Username: username.trim(),
       PasswordHash: Hash,
       PasswordSalt: Salt,
+      Role: "admin",
       CreatedAt: new Date().toISOString(),
     };
 
@@ -51,6 +52,62 @@ export class AuthService {
     });
 
     return user;
+  }
+
+  public async CreateUser(
+    username: string,
+    password: string,
+    role: "admin" | "user" = "user"
+  ): Promise<IUserRecord> {
+    const existing = this.DatabaseManager.FindUserByUsername(username.trim());
+    if (existing) {
+      throw new Error(`Username ${username} is already taken.`);
+    }
+
+    if (password.length < 8) {
+      throw new Error("Password must be at least 8 characters long.");
+    }
+
+    const { Hash, Salt } = await this.CryptoService.HashPassword(password);
+    const user: IUserRecord = {
+      Id: crypto.randomUUID(),
+      Username: username.trim(),
+      PasswordHash: Hash,
+      PasswordSalt: Salt,
+      Role: role,
+      CreatedAt: new Date().toISOString(),
+    };
+
+    this.DatabaseManager.CreateUser(user);
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "USER_CREATE",
+      IpAddress: "system",
+      Details: `User ${user.Username} (${role}) created.`,
+    });
+
+    return user;
+  }
+
+  public GetAllUsers(): IUserRecord[] {
+    return this.DatabaseManager.GetAllUsers();
+  }
+
+  public DeleteUser(userId: string): void {
+    const user = this.DatabaseManager.FindUserById(userId);
+    if (!user) {
+      throw new Error("User not found.");
+    }
+
+    this.DatabaseManager.DeleteUser(userId);
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "USER_DELETE",
+      IpAddress: "system",
+      Details: `User ${user.Username} deleted.`,
+    });
   }
 
   public async Login(

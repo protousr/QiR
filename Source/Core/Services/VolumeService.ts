@@ -23,6 +23,23 @@ export class VolumeService {
     return volumePath;
   }
 
+  public async ProvisionInitialFiles(
+    serverId: string,
+    files?: Record<string, string>
+  ): Promise<void> {
+    if (!files) return;
+    const volumePath = await this.EnsureServerVolume(serverId);
+    for (const [filename, content] of Object.entries(files)) {
+      const targetPath = path.resolve(volumePath, filename);
+      try {
+        await fs.access(targetPath);
+      } catch {
+        await fs.mkdir(path.dirname(targetPath), { recursive: true });
+        await fs.writeFile(targetPath, content, "utf8");
+      }
+    }
+  }
+
   public async DeleteServerVolume(serverId: string): Promise<void> {
     const volumePath = this.GetServerVolumePath(serverId);
     try {
@@ -37,6 +54,7 @@ export class VolumeService {
     subPath: string = ""
   ): Promise<Array<{ Name: string; IsDirectory: boolean; Size: number }>> {
     const targetPath = path.resolve(this.GetServerVolumePath(serverId), subPath);
+    await fs.mkdir(targetPath, { recursive: true });
     const entries = await fs.readdir(targetPath, { withFileTypes: true });
 
     const results = [];
@@ -75,5 +93,10 @@ export class VolumeService {
     const filePath = path.resolve(this.GetServerVolumePath(serverId), relativeFilePath);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, content, "utf8");
+  }
+
+  public async DeleteFile(serverId: string, relativeFilePath: string): Promise<void> {
+    const filePath = path.resolve(this.GetServerVolumePath(serverId), relativeFilePath);
+    await fs.rm(filePath, { recursive: true, force: true });
   }
 }
