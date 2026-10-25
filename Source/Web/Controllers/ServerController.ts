@@ -1,0 +1,204 @@
+import type { FastifyReply, FastifyRequest } from "fastify";
+import { ServerService } from "../../Core/Services/ServerService.js";
+import { CreateServerSchema, SendCommandSchema } from "../Middleware/ValidationMiddleware.js";
+
+export class ServerController {
+  private readonly ServerService: ServerService;
+
+  public constructor() {
+    this.ServerService = ServerService.GetInstance();
+  }
+
+  public GetAllServers = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const servers = await this.ServerService.GetAllServers();
+    reply.send({ Success: true, Data: servers });
+  };
+
+  public GetServerById = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    const server = await this.ServerService.GetServer(request.params.Id);
+    if (!server) {
+      reply.status(404).send({ Success: false, Error: "Server not found" });
+      return;
+    }
+    reply.send({ Success: true, Data: server });
+  };
+
+  public CreateServer = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const validation = CreateServerSchema.safeParse(request.body);
+    if (!validation.success) {
+      reply.status(400).send({ Success: false, Error: validation.error.format() });
+      return;
+    }
+
+    try {
+      const server = await this.ServerService.CreateServer(validation.data);
+      reply.status(201).send({ Success: true, Data: server });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to create server",
+      });
+    }
+  };
+
+  public StartServer = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.StartServer(request.params.Id);
+      reply.send({ Success: true, Message: "Server started successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to start server",
+      });
+    }
+  };
+
+  public StopServer = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.StopServer(request.params.Id);
+      reply.send({ Success: true, Message: "Server stopped successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to stop server",
+      });
+    }
+  };
+
+  public RestartServer = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.RestartServer(request.params.Id);
+      reply.send({ Success: true, Message: "Server restarted successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to restart server",
+      });
+    }
+  };
+
+  public DeleteServer = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.DeleteServer(request.params.Id);
+      reply.send({ Success: true, Message: "Server deleted successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to delete server",
+      });
+    }
+  };
+
+  public SendCommand = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    const validation = SendCommandSchema.safeParse(request.body);
+    if (!validation.success) {
+      reply.status(400).send({ Success: false, Error: validation.error.format() });
+      return;
+    }
+
+    try {
+      const output = await this.ServerService.SendCommand(
+        request.params.Id,
+        validation.data.Command
+      );
+      reply.send({ Success: true, Data: { Output: output } });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to execute command",
+      });
+    }
+  };
+
+  public GetLogs = async (
+    request: FastifyRequest<{ Params: { Id: string }; Querystring: { Tail?: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const tail = Number(request.query.Tail) || 100;
+      const logs = await this.ServerService.GetLogs(request.params.Id, tail);
+      reply.send({ Success: true, Data: { Logs: logs } });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to fetch logs",
+      });
+    }
+  };
+
+  public ListVolumeFiles = async (
+    request: FastifyRequest<{ Params: { Id: string }; Querystring: { SubPath?: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const files = await this.ServerService.GetVolumeService().ListFiles(
+        request.params.Id,
+        request.query.SubPath || ""
+      );
+      reply.send({ Success: true, Data: files });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to list files",
+      });
+    }
+  };
+
+  public ReadVolumeFile = async (
+    request: FastifyRequest<{ Params: { Id: string }; Querystring: { FilePath: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const content = await this.ServerService.GetVolumeService().ReadFile(
+        request.params.Id,
+        request.query.FilePath
+      );
+      reply.send({ Success: true, Data: { Content: content } });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to read file",
+      });
+    }
+  };
+
+  public WriteVolumeFile = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { FilePath: string; Content: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.GetVolumeService().WriteFile(
+        request.params.Id,
+        request.body.FilePath,
+        request.body.Content
+      );
+      reply.send({ Success: true, Message: "File saved successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to write file",
+      });
+    }
+  };
+}

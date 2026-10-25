@@ -1,0 +1,87 @@
+:root {
+  --bs-body-font-family: "SF Pro Display", "SF Pro Text", "SF Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --bs-font-monospace: "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: var(--bs-body-font-family);
+  letter-spacing: -0.01em;
+}
+
+#AppWrapper {
+  height: 100vh;
+  width: 100vw;
+}
+
+.Sidebar {
+  width: 250px;
+  height: 100vh;
+}
+
+.Sidebar .nav-link {
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
+.Sidebar .nav-link.active {
+  background-color: var(--bs-primary);
+  color: #fff !important;
+}
+
+.MainContent {
+  height: 100vh;
+}
+
+.table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: #8b949e !important;
+  background-color: #161b22 !important;
+}
+
+.table td {
+  font-size: 0.88rem;
+}
+
+.card {
+  border-radius: 8px;
+}
+
+.btn {
+  font-weight: 500;
+  border-radius: 6px;
+}
+
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.font-monospace {
+  font-family: var(--bs-font-monospace) !important;
+}
+
+#ConsoleTerminal {
+  font-family: var(--bs-font-monospace) !important;
+}
+
+#ConsoleTerminal::-webkit-scrollbar {
+  width: 8px;
+}
+
+#ConsoleTerminal::-webkit-scrollbar-track {
+  background: #07090e;
+}
+
+#ConsoleTerminal::-webkit-scrollbar-thumb {
+  background: #252e42;
+  border-radius: 4px;
+}

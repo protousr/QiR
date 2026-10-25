@@ -1,0 +1,21 @@
+[Unit]
+Description=QiR Container Hosting Panel
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/qir
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=4000
+Environment=HOST=127.0.0.1
+Environment=DOCKER_SOCKET_PATH=/var/run/docker.sock
+Environment=DATA_DIRECTORY=/opt/qir/Data/Volumes
+Environment=TRUST_PROXY=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,50 @@
+import fastify, { FastifyInstance } from "fastify";
+import fastifyCors from "@fastify/cors";
+import fastifyWebsocket from "@fastify/websocket";
+import fastifyStatic from "@fastify/static";
+import path from "node:path";
+import { ServerRoutes } from "./Web/Routes/ServerRoutes.js";
+import { TemplateRoutes } from "./Web/Routes/TemplateRoutes.js";
+import { SystemRoutes } from "./Web/Routes/SystemRoutes.js";
+import { ConsoleWebSocketRoute } from "./Web/WebSockets/ConsoleWebSocket.js";
+import { StatsWebSocketRoute } from "./Web/WebSockets/StatsWebSocket.js";
+import { GlobalErrorHandler } from "./Web/Middleware/ErrorHandler.js";
+import { ConfigInstance } from "./Config/EnvironmentConfig.js";
+
+export async function BuildApp(): Promise<FastifyInstance> {
+  const app = fastify({
+    logger: {
+      level: ConfigInstance.LogLevel,
+    },
+    trustProxy: ConfigInstance.TrustProxy,
+  });
+
+  app.setErrorHandler(GlobalErrorHandler);
+
+  await app.register(fastifyCors, {
+    origin: true,
+    credentials: true,
+  });
+
+  await app.register(fastifyWebsocket);
+
+  const publicPath = path.resolve(process.cwd(), "Source", "Public");
+  await app.register(fastifyStatic, {
+    root: publicPath,
+    prefix: "/",
+  });
+
+  await app.register(
+    async (api) => {
+      await api.register(ServerRoutes);
+      await api.register(TemplateRoutes);
+      await api.register(SystemRoutes);
+    },
+    { prefix: "/api" }
+  );
+
+  await app.register(ConsoleWebSocketRoute);
+  await app.register(StatsWebSocketRoute);
+
+  return app;
+}
