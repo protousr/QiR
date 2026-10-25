@@ -275,6 +275,12 @@
                     <i class="bi bi-arrow-repeat me-1"></i> Restart All
                   </button>
                 </div>
+                <div class="d-flex align-items-center gap-1 ms-2" id="ServerStatusFilterPills">
+                  <button type="button" class="btn btn-xs btn-primary StatusFilterPill active" data-status="all">All (<span id="CountStatusAll">0</span>)</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary StatusFilterPill" data-status="Running">Running (<span id="CountStatusRunning">0</span>)</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary StatusFilterPill" data-status="Stopped">Stopped (<span id="CountStatusStopped">0</span>)</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary StatusFilterPill" data-status="Error">Alert / Other (<span id="CountStatusError">0</span>)</button>
+                </div>
                 <div class="d-flex align-items-center gap-1 ms-2" id="ServerFilterChips">
                   <button class="btn btn-xs btn-primary FilterChip active" data-filter="all">All (<span id="ChipCountAll">0</span>)</button>
                   <button class="btn btn-xs btn-outline-secondary FilterChip" data-filter="running">Running (<span id="ChipCountRunning">0</span>)</button>
@@ -2065,9 +2071,6 @@ DATABASE_URL=postgres://..."></textarea>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="App.js" type="module"></script>
-
   <div class="modal fade" id="GrepFilesModal" tabindex="-1" aria-labelledby="GrepFilesModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content">
@@ -2106,5 +2109,10 @@ DATABASE_URL=postgres://..."></textarea>
     </div>
   </div>
 
-</body>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="App.js" type="module"></script>
+
+  </body>
 </html>

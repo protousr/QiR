@@ -1,3 +1,13 @@
+function EscapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+const escapeHtml = EscapeHtml;
+
 
 function ShowToast(message, type = "info", duration = 3500) {
   const container = document.getElementById("ToastContainer");
@@ -9,7 +19,7 @@ function ShowToast(message, type = "info", duration = 3500) {
                type === "warning" ? "bi-exclamation-triangle-fill text-warning" : "bi-info-circle-fill text-info";
   toast.innerHTML = `
     <i class="bi ${icon} fs-5"></i>
-    <div class="small fw-medium flex-grow-1 text-truncate">${escapeHtml(String(message))}</div>
+    <div class="small fw-medium flex-grow-1 text-truncate">${EscapeHtml(String(message))}</div>
     <button type="button" class="btn-close btn-close-white btn-sm ms-2" aria-label="Close"></button>
   `;
   container.appendChild(toast);
@@ -609,9 +619,21 @@ function SetupAuthEventListeners() {
   });
 }
 
+let DashboardInitialized = false;
+
 function InitializeDashboard() {
-  SetupNavigation();
-  SetupEventListeners();
+  if (!DashboardInitialized) {
+    SetupNavigation();
+    SetupEventListeners();
+    SetupEnvironmentTabListeners();
+    SetupFilterChips();
+    SetupMobileSidebar();
+    SetupCommandPalette();
+    SetupSecurityModal();
+    SetupThemeCustomizer();
+    SetupExtraServerFeatures();
+    DashboardInitialized = true;
+  }
 
   Promise.all([FetchSystemStatus(), FetchTemplates()]).then(() => {
     FetchServers();
@@ -1466,14 +1488,30 @@ function AttachTableActionListeners() {
 
 async function PostServerAction(id, action) {
   try {
-    await fetch(`/api/servers/${id}/${action}`, { method: "POST" });
-  } catch {}
+    const res = await fetch(`/api/servers/${id}/${action}`, { method: "POST" });
+    const json = await res.json().catch(() => null);
+    if (json && !json.Success) {
+      ShowToast(json.Error || `Failed to ${action} container`, "error");
+    } else {
+      ShowToast(`Server ${action} command dispatched`, "success");
+    }
+  } catch {
+    ShowToast(`Network error triggering ${action}`, "error");
+  }
 }
 
 async function DeleteServer(id) {
   try {
-    await fetch(`/api/servers/${id}`, { method: "DELETE" });
-  } catch {}
+    const res = await fetch(`/api/servers/${id}`, { method: "DELETE" });
+    const json = await res.json().catch(() => null);
+    if (json && !json.Success) {
+      ShowToast(json.Error || "Failed to delete server", "error");
+    } else {
+      ShowToast("Server deleted successfully", "success");
+    }
+  } catch {
+    ShowToast("Network error deleting server", "error");
+  }
 }
 
 function OpenServerDetail(serverId) {
@@ -2812,15 +2850,7 @@ function FormatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
-function EscapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
+SetupThemeCustomizer();
 SetupAuthEventListeners();
 CheckAuthentication();
 
@@ -2919,11 +2949,11 @@ function AddEnvRow(key = "", value = "") {
   tr.className = "EnvTableRow";
   tr.innerHTML = `
     <td>
-      <input type="text" class="form-control form-control-sm font-monospace EnvKeyInput" value="${escapeHtml(key)}" placeholder="KEY_NAME">
+      <input type="text" class="form-control form-control-sm font-monospace EnvKeyInput" value="${EscapeHtml(key)}" placeholder="KEY_NAME">
     </td>
     <td>
       <div class="input-group input-group-sm">
-        <input type="${EnvValuesMasked ? "password" : "text"}" class="form-control font-monospace EnvValueInput" value="${escapeHtml(value)}" placeholder="Value">
+        <input type="${EnvValuesMasked ? "password" : "text"}" class="form-control font-monospace EnvValueInput" value="${EscapeHtml(value)}" placeholder="Value">
         <button class="btn btn-outline-secondary EnvRowToggleBtn" type="button" title="Toggle visibility">
           <i class="bi ${EnvValuesMasked ? "bi-eye" : "bi-eye-slash"}"></i>
         </button>
@@ -3211,7 +3241,7 @@ function SetupCommandPalette() {
     currentResults = filtered;
 
     if (filtered.length === 0) {
-      list.innerHTML = `<div class="p-3 text-center text-body-secondary small">No commands or instances match "${escapeHtml(query)}"</div>`;
+      list.innerHTML = `<div class="p-3 text-center text-body-secondary small">No commands or instances match "${EscapeHtml(query)}"</div>`;
       return;
     }
 
@@ -3420,12 +3450,12 @@ async function LoadActiveSessions() {
             <div class="d-flex align-items-center gap-2">
               <i class="bi ${s.UserAgent.includes("Mobile") ? "bi-phone" : "bi-laptop"} text-body-secondary fs-5"></i>
               <div>
-                <div class="small fw-medium">${escapeHtml(s.UserAgent.slice(0, 40))}</div>
+                <div class="small fw-medium">${EscapeHtml(s.UserAgent.slice(0, 40))}</div>
                 ${isCurrent ? '<span class="badge text-bg-primary" style="font-size:0.65rem;">This Device</span>' : ""}
               </div>
             </div>
           </td>
-          <td class="font-monospace small text-body-secondary">${escapeHtml(s.IpAddress)}</td>
+          <td class="font-monospace small text-body-secondary">${EscapeHtml(s.IpAddress)}</td>
           <td class="small text-body-secondary">${new Date(s.CreatedAt).toLocaleString()}</td>
           <td class="text-end pe-2">
             ${isCurrent ? '<span class="text-body-tertiary small">Active</span>' : `<button class="btn btn-xs btn-outline-danger RevokeSessionBtn" data-id="${s.Id}">Revoke</button>`}
