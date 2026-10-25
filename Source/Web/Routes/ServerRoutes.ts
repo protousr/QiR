@@ -100,6 +100,7 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get<{ Params: { Id: string } }>("/servers/:Id/audit", controller.GetServerAuditLogs);
   fastify.post("/servers/bulk/start", controller.BulkStart);
   fastify.post("/servers/bulk/stop", controller.BulkStop);
+  fastify.post("/servers/bulk/restart", controller.BulkRestart);
   fastify.post<{
     Params: { Id: string };
     Body: { HostPort: number; ContainerPort: number; Protocol: "tcp" | "udp" };
@@ -129,4 +130,6 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Params: { Id: string } }>("/servers/:Id/webhook/rotate", controller.RotateWebhook);
   fastify.post<{ Params: { Id: string }; Body: { Command: string } }>("/servers/:Id/exec", controller.ExecuteQuickCommand);
   fastify.get<{ Params: { Id: string } }>("/servers/:Id/export-archive", controller.ExportVolumeArchive);
+  fastify.get<{ Params: { Id: string } }>("/servers/:Id/processes", controller.GetServerProcesses);
+  fastify.post<{ Params: { Id: string }; Body?: { Image?: string } }>("/servers/:Id/redeploy", controller.RedeployServer);
 }

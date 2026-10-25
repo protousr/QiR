@@ -455,6 +455,15 @@ export class ServerController {
             reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Bulk stop failed" });
         }
     };
+    BulkRestart = async (_request, reply) => {
+        try {
+            const result = await this.ServerService.BulkRestartAll();
+            reply.send({ Success: true, Data: result, Message: `Restarted ${result.SuccessCount} container(s)` });
+        }
+        catch (err) {
+            reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Bulk restart failed" });
+        }
+    };
     GetSchedules = async (request, reply) => {
         try {
             const schedules = this.ScheduleService.GetSchedulesForServer(request.params.Id);
@@ -564,6 +573,34 @@ export class ServerController {
             reply.status(500).send({
                 Success: false,
                 Error: err instanceof Error ? err.message : "Failed to export volume",
+            });
+        }
+    };
+    GetServerProcesses = async (request, reply) => {
+        try {
+            const top = await this.ServerService.GetServerProcesses(request.params.Id);
+            reply.send({ Success: true, Data: top });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to fetch container processes",
+            });
+        }
+    };
+    RedeployServer = async (request, reply) => {
+        try {
+            const server = await this.ServerService.RedeployServer(request.params.Id, request.body?.Image);
+            reply.send({
+                Success: true,
+                Data: server,
+                Message: "Container redeployed successfully with latest image",
+            });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Redeploy failed",
             });
         }
     };

@@ -263,6 +263,9 @@
                   <button class="btn btn-xs btn-outline-warning" id="BulkStopBtn" title="Stop all running containers">
                     <i class="bi bi-stop-fill me-1"></i> Stop All
                   </button>
+                  <button class="btn btn-xs btn-outline-info" id="BulkRestartBtn" title="Restart all running containers">
+                    <i class="bi bi-arrow-repeat me-1"></i> Restart All
+                  </button>
                 </div>
                 <div class="d-flex align-items-center gap-1 ms-2" id="ServerFilterChips">
                   <button class="btn btn-xs btn-primary FilterChip active" data-filter="all">All (<span id="ChipCountAll">0</span>)</button>
@@ -502,6 +505,10 @@
                   <span id="DetailFilesCurrentPath">/</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                  <div class="input-group input-group-sm d-none d-md-flex" style="width: 170px;">
+                    <span class="input-group-text bg-transparent border-secondary text-body-secondary py-0"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control form-control-sm font-monospace bg-transparent border-secondary text-body py-0" id="FilesSearchInput" placeholder="Filter files...">
+                  </div>
                   <input type="file" id="DetailFilesHiddenInput" style="display: none;">
                                     <button class="btn btn-sm btn-outline-secondary" id="DetailFilesCompressBtn">
                     <i class="bi bi-file-earmark-zip me-1"></i> Compress
@@ -704,6 +711,24 @@
                   </div>
                 </div>
 
+                <div class="card TableCard shadow-sm mb-3">
+                  <div class="card-header TableCardHeader py-2 small fw-medium d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-arrow-repeat me-1 text-primary"></i> Image Rollout &amp; Redeployment</span>
+                    <span class="badge text-bg-dark border font-monospace" id="DetailCurrentImageBadge">-</span>
+                  </div>
+                  <div class="card-body p-3 small">
+                    <div class="text-body-secondary mb-2" style="font-size: 0.8rem;">
+                      Pull latest image layers or switch tags to trigger a zero-downtime container rollout:
+                    </div>
+                    <div class="input-group input-group-sm mb-2">
+                      <input type="text" class="form-control font-monospace" id="DetailRedeployImageInput" placeholder="e.g. redis:7-alpine">
+                      <button class="btn btn-primary" id="DetailRedeployBtn" type="button">
+                        <i class="bi bi-cloud-arrow-down me-1"></i> Redeploy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="card TableCard shadow-sm mt-3">
                   <div class="card-header TableCardHeader py-2 small fw-medium">
                     <i class="bi bi-gear-wide-connected me-1 text-primary"></i> DevOps &amp; Low-Level Tools
@@ -736,6 +761,9 @@
                   </button>
                                     <button class="btn btn-xs btn-outline-secondary" id="EnvImportDotEnvBtn">
                     <i class="bi bi-filetype-raw me-1"></i> Paste .env
+                  </button>
+                  <button class="btn btn-xs btn-outline-secondary" id="EnvExportDotEnvBtn">
+                    <i class="bi bi-box-arrow-down me-1"></i> Export .env
                   </button>
                   <button class="btn btn-xs btn-outline-primary" id="EnvAddRowBtn">
                     <i class="bi bi-plus-lg me-1"></i> Add Variable
@@ -885,13 +913,43 @@
           <div id="DetailTabDocker" class="d-none">
             <div class="card TableCard shadow-sm mb-3">
               <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2">
-                <span class="fw-medium small">Docker Container Metadata</span>
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-cpu text-primary"></i>
+                  <span class="fw-medium small">Live Container Processes (docker top)</span>
+                  <span class="badge text-bg-dark border font-monospace ms-2" id="DetailProcessesCountBadge">0 processes</span>
+                </div>
+                <button class="btn btn-xs btn-outline-secondary" id="DetailRefreshProcessesBtn">
+                  <i class="bi bi-arrow-clockwise me-1"></i> Refresh Processes
+                </button>
+              </div>
+              <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
+                <table class="table table-hover align-middle mb-0 font-monospace small">
+                  <thead>
+                    <tr>
+                      <th class="ps-3 py-2">PID</th>
+                      <th class="py-2">USER</th>
+                      <th class="py-2">TIME</th>
+                      <th class="py-2">COMMAND</th>
+                    </tr>
+                  </thead>
+                  <tbody id="DetailProcessesTableBody">
+                    <tr>
+                      <td colspan="4" class="text-center py-4 text-body-secondary">Loading running processes...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card TableCard shadow-sm mb-3">
+              <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2">
+                <span class="fw-medium small"><i class="bi bi-code-slash me-1 text-primary"></i> Raw Docker Container Metadata</span>
                 <button class="btn btn-sm btn-outline-secondary" id="DetailCopyInspectBtn">
                   <i class="bi bi-clipboard me-1"></i> Copy JSON
                 </button>
               </div>
               <div class="card-body p-0">
-                <pre class="m-0 p-3 font-monospace small" id="DetailDockerInspectPre" style="max-height: 480px; overflow-y: auto; background-color: #07080a; color: #a5b4fc;"></pre>
+                <pre class="m-0 p-3 font-monospace small" id="DetailDockerInspectPre" style="max-height: 380px; overflow-y: auto; background-color: #07080a; color: #a5b4fc;"></pre>
               </div>
             </div>
           </div>
@@ -1667,6 +1725,29 @@ DATABASE_URL=postgres://..."></textarea>
             </div>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="ImagePreviewModal" tabindex="-1" aria-labelledby="ImagePreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-image text-primary"></i>
+            <span class="fw-medium font-monospace small" id="ImagePreviewPathLabel">-</span>
+            <span class="badge text-bg-dark border font-monospace ms-2" id="ImagePreviewDimensionsBadge">-</span>
+          </div>
+          <div class="ms-auto d-flex align-items-center gap-2">
+            <a href="#" class="btn btn-sm btn-outline-secondary py-1 px-2" id="ImagePreviewDownloadBtn" download title="Download Image">
+              <i class="bi bi-download"></i>
+            </a>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+        </div>
+        <div class="modal-body p-4 text-center d-flex align-items-center justify-content-center" style="background-color: #07080a; min-height: 350px;">
+          <img id="ImagePreviewImg" src="" alt="Preview" class="img-fluid rounded border border-secondary border-opacity-25 shadow-sm" style="max-height: 500px; object-fit: contain;">
+        </div>
       </div>
     </div>
   </div>

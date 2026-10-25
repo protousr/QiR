@@ -292,6 +292,20 @@ const Elements = {
   PruneVolumesBtn: document.getElementById("PruneVolumesBtn"),
   PruneBuilderBtn: document.getElementById("PruneBuilderBtn"),
   PruneAllBtn: document.getElementById("PruneAllBtn"),
+  BulkRestartBtn: document.getElementById("BulkRestartBtn"),
+  FilesSearchInput: document.getElementById("FilesSearchInput"),
+  EnvExportDotEnvBtn: document.getElementById("EnvExportDotEnvBtn"),
+  DetailCurrentImageBadge: document.getElementById("DetailCurrentImageBadge"),
+  DetailRedeployImageInput: document.getElementById("DetailRedeployImageInput"),
+  DetailRedeployBtn: document.getElementById("DetailRedeployBtn"),
+  DetailProcessesCountBadge: document.getElementById("DetailProcessesCountBadge"),
+  DetailRefreshProcessesBtn: document.getElementById("DetailRefreshProcessesBtn"),
+  DetailProcessesTableBody: document.getElementById("DetailProcessesTableBody"),
+  ImagePreviewModal: document.getElementById("ImagePreviewModal"),
+  ImagePreviewPathLabel: document.getElementById("ImagePreviewPathLabel"),
+  ImagePreviewDimensionsBadge: document.getElementById("ImagePreviewDimensionsBadge"),
+  ImagePreviewDownloadBtn: document.getElementById("ImagePreviewDownloadBtn"),
+  ImagePreviewImg: document.getElementById("ImagePreviewImg"),
 };
 
 function GetBootstrapModal(element) {
@@ -658,6 +672,7 @@ function SwitchDetailTab(tabName) {
     FetchServerBackups(ActiveDetailServerId);
   } else if (tabName === "Docker") {
     FetchServerInspect(ActiveDetailServerId);
+    FetchServerProcesses(ActiveDetailServerId);
   } else if (tabName === "Config") {
     RenderServerConfigTab();
   } else if (tabName === "Networking") {
@@ -1332,6 +1347,9 @@ function UpdateDetailServerHeader(server) {
 
   const template = Templates.find((t) => t.Id === server.TemplateId);
   Elements.DetailTemplateBadge.textContent = template ? template.Name : server.TemplateId;
+  if (Elements.DetailCurrentImageBadge) {
+    Elements.DetailCurrentImageBadge.textContent = server.Image || "default";
+  }
 
   let statusBadgeClass = "text-bg-secondary";
   if (server.Status === "Running") statusBadgeClass = "text-bg-success";
@@ -1545,7 +1563,7 @@ function RenderServerFilesTable(files) {
           ${
             !item.IsDirectory
               ? `
-                <button class="btn btn-ghost py-1 px-2" data-action="edit-file" data-path="${EscapeHtml(relativePath)}" title="Edit File"><i class="bi bi-pencil"></i></button>
+                ${/\.(png|jpe?g|gif|svg|webp|ico)$/i.test(item.Name) ? `<button class="btn btn-ghost py-1 px-2 text-info" data-action="preview-image" data-path="${EscapeHtml(relativePath)}" data-name="${EscapeHtml(item.Name)}" title="Preview Image"><i class="bi bi-eye"></i></button>` : `<button class="btn btn-ghost py-1 px-2" data-action="edit-file" data-path="${EscapeHtml(relativePath)}" title="Edit File"><i class="bi bi-pencil"></i></button>`}
                 <a href="/api/servers/${ActiveDetailServerId}/files/download?FilePath=${encodeURIComponent(relativePath)}" class="btn btn-ghost py-1 px-2" title="Download File"><i class="bi bi-download"></i></a>
               `
               : ""
@@ -1573,6 +1591,8 @@ function RenderServerFilesTable(files) {
       const itemPath = link.dataset.path;
       if (isDir) {
         FetchServerFiles(ActiveDetailServerId, itemPath);
+      } else if (/\.(png|jpe?g|gif|svg|webp|ico)$/i.test(itemPath)) {
+        OpenImagePreview(itemPath, itemPath.split("/").pop());
       } else {
         OpenFileEditor(ActiveDetailServerId, itemPath);
       }
@@ -1585,7 +1605,9 @@ function RenderServerFilesTable(files) {
       const action = btn.dataset.action;
       const filePath = btn.dataset.path;
 
-      if (action === "edit-file") {
+      if (action === "preview-image") {
+        OpenImagePreview(filePath, btn.dataset.name || filePath.split("/").pop());
+      } else if (action === "edit-file") {
         OpenFileEditor(ActiveDetailServerId, filePath);
       
       } else if (action === "extract-file") {
@@ -2557,6 +2579,8 @@ if (typeof window !== "undefined") {
     OpenQuickExecModal,
     OpenFileEditor,
     ToggleTerminalFullscreen,
+    FetchServerProcesses,
+    OpenImagePreview,
   };
 }
 
@@ -3442,6 +3466,22 @@ function SetupExtraServerFeatures() {
   if (Elements.PruneAllBtn) {
     Elements.PruneAllBtn.addEventListener("click", () => TriggerDockerPrune("all"));
   }
+
+  if (Elements.BulkRestartBtn) {
+    Elements.BulkRestartBtn.addEventListener("click", HandleBulkRestart);
+  }
+  if (Elements.FilesSearchInput) {
+    Elements.FilesSearchInput.addEventListener("input", HandleFilesSearchInput);
+  }
+  if (Elements.EnvExportDotEnvBtn) {
+    Elements.EnvExportDotEnvBtn.addEventListener("click", HandleExportDotEnv);
+  }
+  if (Elements.DetailRedeployBtn) {
+    Elements.DetailRedeployBtn.addEventListener("click", HandleRedeployServer);
+  }
+  if (Elements.DetailRefreshProcessesBtn) {
+    Elements.DetailRefreshProcessesBtn.addEventListener("click", () => FetchServerProcesses(ActiveDetailServerId));
+  }
 }
 
 let RawInspectData = null;
@@ -3623,5 +3663,155 @@ async function TriggerDockerPrune(target) {
     }
   } catch (err) {
     ShowToast("Network error executing prune", "error");
+  }
+}
+
+function OpenImagePreview(filePath, fileName) {
+  if (!Elements.ImagePreviewModal) return;
+  Elements.ImagePreviewPathLabel.textContent = `/${filePath}`;
+  Elements.ImagePreviewDownloadBtn.href = `/api/servers/${ActiveDetailServerId}/files/download?FilePath=${encodeURIComponent(filePath)}`;
+  Elements.ImagePreviewDownloadBtn.download = fileName;
+  Elements.ImagePreviewImg.src = `/api/servers/${ActiveDetailServerId}/files/download?FilePath=${encodeURIComponent(filePath)}`;
+  Elements.ImagePreviewImg.onload = () => {
+    if (Elements.ImagePreviewDimensionsBadge) {
+      Elements.ImagePreviewDimensionsBadge.textContent = `${Elements.ImagePreviewImg.naturalWidth} x ${Elements.ImagePreviewImg.naturalHeight} px`;
+    }
+  };
+  const modal = GetBootstrapModal(Elements.ImagePreviewModal);
+  if (modal) modal.show();
+}
+
+async function FetchServerProcesses(serverId) {
+  if (!Elements.DetailProcessesTableBody) return;
+  Elements.DetailProcessesTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-body-secondary"><span class="spinner-border spinner-border-sm me-2"></span>Inspecting running processes...</td></tr>`;
+
+  try {
+    const res = await fetch(`/api/servers/${serverId}/processes`);
+    const json = await res.json();
+    if (json.Success && json.Data && Array.isArray(json.Data.Processes)) {
+      const top = json.Data;
+      if (Elements.DetailProcessesCountBadge) {
+        Elements.DetailProcessesCountBadge.textContent = `${top.Processes.length} processes`;
+      }
+      if (top.Processes.length === 0) {
+        Elements.DetailProcessesTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-body-secondary">No processes currently active.</td></tr>`;
+        return;
+      }
+      const pidIdx = top.Titles.findIndex((t) => t.toUpperCase() === "PID");
+      const userIdx = top.Titles.findIndex((t) => t.toUpperCase() === "UID" || t.toUpperCase() === "USER");
+      const timeIdx = top.Titles.findIndex((t) => t.toUpperCase() === "TIME");
+      const cmdIdx = top.Titles.findIndex((t) => t.toUpperCase() === "CMD" || t.toUpperCase() === "COMMAND");
+
+      Elements.DetailProcessesTableBody.innerHTML = "";
+      for (const proc of top.Processes) {
+        const tr = document.createElement("tr");
+        const pid = pidIdx >= 0 ? proc[pidIdx] : proc[1] || "-";
+        const user = userIdx >= 0 ? proc[userIdx] : proc[0] || "-";
+        const time = timeIdx >= 0 ? proc[timeIdx] : proc[6] || "-";
+        const cmd = cmdIdx >= 0 ? proc[cmdIdx] : proc[proc.length - 1] || "-";
+
+        tr.innerHTML = `
+          <td class="ps-3 py-2 fw-semibold text-primary">${EscapeHtml(pid)}</td>
+          <td class="py-2 text-body-secondary">${EscapeHtml(user)}</td>
+          <td class="py-2 text-body-secondary">${EscapeHtml(time)}</td>
+          <td class="py-2 text-body text-break">${EscapeHtml(cmd)}</td>
+        `;
+        Elements.DetailProcessesTableBody.appendChild(tr);
+      }
+    } else {
+      Elements.DetailProcessesTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-body-secondary">Container is not currently running. Start container to view processes.</td></tr>`;
+      if (Elements.DetailProcessesCountBadge) Elements.DetailProcessesCountBadge.textContent = "0 processes";
+    }
+  } catch {
+    Elements.DetailProcessesTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-danger">Failed to fetch container process list.</td></tr>`;
+  }
+}
+
+async function HandleRedeployServer() {
+  if (!ActiveDetailServerId) return;
+  const newImage = Elements.DetailRedeployImageInput?.value.trim() || undefined;
+  if (!confirm(`Redeploy container ${newImage ? "with image '" + newImage + "'" : "with latest image tag"}?`)) return;
+
+  Elements.DetailRedeployBtn.disabled = true;
+  Elements.DetailRedeployBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Redeploying...`;
+  ShowToast("Pulling image and rolling out updated container...", "info");
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/redeploy`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Image: newImage }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      ShowToast("Container redeployed successfully!", "success");
+      await FetchServers();
+      OpenServerDetail(ActiveDetailServerId);
+      SwitchDetailTab("Console");
+    } else {
+      ShowToast("Redeploy failed: " + json.Error, "error");
+    }
+  } catch (err) {
+    ShowToast("Network error redeploying container", "error");
+  } finally {
+    Elements.DetailRedeployBtn.disabled = false;
+    Elements.DetailRedeployBtn.innerHTML = `<i class="bi bi-cloud-arrow-down me-1"></i> Redeploy`;
+  }
+}
+
+function HandleExportDotEnv() {
+  const rows = Elements.DetailEnvTableBody?.querySelectorAll("tr") || [];
+  let content = "";
+  for (const row of rows) {
+    const keyInput = row.querySelector(".EnvKeyInput");
+    const valInput = row.querySelector(".EnvValInput");
+    if (keyInput && valInput && keyInput.value.trim()) {
+      content += `${keyInput.value.trim()}=${valInput.value}\n`;
+    }
+  }
+  if (!content) {
+    ShowToast("No environment variables to export", "warning");
+    return;
+  }
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `qir-${ActiveDetailServerId || "server"}.env`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  ShowToast("Environment variables exported to .env", "success");
+}
+
+function HandleFilesSearchInput() {
+  const q = Elements.FilesSearchInput?.value.trim().toLowerCase() || "";
+  const rows = Elements.DetailFilesTableBody?.querySelectorAll("tr") || [];
+  for (const row of rows) {
+    const link = row.querySelector(".FileItemLink");
+    if (!link) continue;
+    const name = link.textContent.trim().toLowerCase();
+    row.style.display = !q || name.includes(q) ? "" : "none";
+  }
+}
+
+async function HandleBulkRestart() {
+  if (!confirm("Restart all running containers across your cluster?")) return;
+  Elements.BulkRestartBtn.disabled = true;
+  ShowToast("Restarting running containers...", "info");
+  try {
+    const res = await fetch("/api/servers/bulk/restart", { method: "POST" });
+    const json = await res.json();
+    if (json.Success) {
+      ShowToast(json.Message || "Restarted containers successfully", "success");
+      await FetchServers();
+    } else {
+      ShowToast("Bulk restart failed: " + json.Error, "error");
+    }
+  } catch {
+    ShowToast("Network error executing bulk restart", "error");
+  } finally {
+    Elements.BulkRestartBtn.disabled = false;
   }
 }

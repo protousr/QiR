@@ -37,6 +37,7 @@ export async function ServerRoutes(fastify) {
     fastify.get("/servers/:Id/audit", controller.GetServerAuditLogs);
     fastify.post("/servers/bulk/start", controller.BulkStart);
     fastify.post("/servers/bulk/stop", controller.BulkStop);
+    fastify.post("/servers/bulk/restart", controller.BulkRestart);
     fastify.post("/servers/:Id/ports", controller.AddPort);
     fastify.delete("/servers/:Id/ports/:ContainerPort/:Protocol", controller.RemovePort);
     fastify.post("/servers/:Id/clone", controller.CloneServer);
@@ -48,4 +49,6 @@ export async function ServerRoutes(fastify) {
     fastify.post("/servers/:Id/webhook/rotate", controller.RotateWebhook);
     fastify.post("/servers/:Id/exec", controller.ExecuteQuickCommand);
     fastify.get("/servers/:Id/export-archive", controller.ExportVolumeArchive);
+    fastify.get("/servers/:Id/processes", controller.GetServerProcesses);
+    fastify.post("/servers/:Id/redeploy", controller.RedeployServer);
 }

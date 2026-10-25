@@ -678,6 +678,15 @@ export class ServerController {
     }
   };
 
+  public BulkRestart = async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    try {
+      const result = await this.ServerService.BulkRestartAll();
+      reply.send({ Success: true, Data: result, Message: `Restarted ${result.SuccessCount} container(s)` });
+    } catch (err) {
+      reply.status(500).send({ Success: false, Error: err instanceof Error ? err.message : "Bulk restart failed" });
+    }
+  };
+
   public GetSchedules = async (
     request: FastifyRequest<{ Params: { Id: string } }>,
     reply: FastifyReply
@@ -816,6 +825,43 @@ export class ServerController {
       reply.status(500).send({
         Success: false,
         Error: err instanceof Error ? err.message : "Failed to export volume",
+      });
+    }
+  };
+
+  public GetServerProcesses = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const top = await this.ServerService.GetServerProcesses(request.params.Id);
+      reply.send({ Success: true, Data: top });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to fetch container processes",
+      });
+    }
+  };
+
+  public RedeployServer = async (
+    request: FastifyRequest<{ Params: { Id: string }; Body?: { Image?: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const server = await this.ServerService.RedeployServer(
+        request.params.Id,
+        request.body?.Image
+      );
+      reply.send({
+        Success: true,
+        Data: server,
+        Message: "Container redeployed successfully with latest image",
+      });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Redeploy failed",
       });
     }
   };

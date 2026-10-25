@@ -69,6 +69,7 @@ export class ServerService {
         for (const server of this.Servers.values()) {
             try {
                 const inspect = await this.ContainerManager.InspectContainer(server.ContainerId);
+                server.Image = inspect.Config.Image;
                 server.OomKilled = Boolean(inspect.State.OOMKilled);
                 server.HealthStatus = inspect.State.Health?.Status || "none";
                 if (inspect.HostConfig?.RestartPolicy?.Name) {
@@ -233,6 +234,7 @@ export class ServerService {
         }
         try {
             const inspect = await this.ContainerManager.InspectContainer(server.ContainerId);
+            server.Image = inspect.Config.Image;
             server.OomKilled = Boolean(inspect.State.OOMKilled);
             server.HealthStatus = inspect.State.Health?.Status || "none";
             if (inspect.HostConfig?.RestartPolicy?.Name) {
@@ -542,6 +544,20 @@ export class ServerService {
         }
         return { SuccessCount: successCount, TotalCount: all.length };
     }
+    async BulkRestartAll() {
+        const all = Array.from(this.Servers.values());
+        let successCount = 0;
+        for (const server of all) {
+            if (server.Status === "Running") {
+                try {
+                    await this.RestartServer(server.Id);
+                    successCount++;
+                }
+                catch { }
+            }
+        }
+        return { SuccessCount: successCount, TotalCount: all.length };
+    }
     async DispatchAlertWebhook(server, title, description, severity = "info") {
         if (!server.AlertWebhookUrl)
             return;
@@ -651,5 +667,35 @@ export class ServerService {
         const backup = await this.BackupService.CreateBackup(serverId, `${safeName}_export`);
         const filePath = this.BackupService.GetBackupFilePath(serverId, backup.FileName);
         return { FilePath: filePath, FileName: backup.FileName };
+    }
+    async GetServerProcesses(serverId) {
+        const server = this.Servers.get(serverId);
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
+        }
+        return await this.ContainerManager.GetContainerProcesses(server.ContainerId);
+    }
+    async RedeployServer(serverId, newImage) {
+        const server = this.Servers.get(serverId);
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
+        }
+        const targetImage = (newImage && newImage.trim()) || server.Image;
+        if (!targetImage) {
+            throw new Error("No image defined for container rollout");
+        }
+        const newContainerId = await this.ContainerManager.RecreateContainerWithNewImage(server.ContainerId, targetImage);
+        server.ContainerId = newContainerId;
+        server.Image = targetImage;
+        server.Status = "Running";
+        await this.SaveServers();
+        this.DatabaseManager.LogAudit({
+            Id: crypto.randomUUID(),
+            Timestamp: new Date().toISOString(),
+            Action: "SERVER_REDEPLOY",
+            IpAddress: "system",
+            Details: `Server ${server.Name} (${serverId}) redeployed with image ${targetImage}.`,
+        });
+        return server;
     }
 }

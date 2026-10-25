@@ -38,6 +38,7 @@ export interface IServerInstance {
   Limits: IResourceLimits;
   AutoRestart: boolean;
   RestartPolicy?: "unless-stopped" | "always" | "on-failure" | "no";
+  Image?: string;
   OomKilled?: boolean;
   HealthStatus?: "healthy" | "unhealthy" | "starting" | "none";
   OwnerId?: string;

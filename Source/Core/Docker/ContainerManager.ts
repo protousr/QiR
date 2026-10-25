@@ -248,4 +248,47 @@ export class ContainerManager {
       });
     });
   }
+
+  public async GetContainerProcesses(
+    containerId: string
+  ): Promise<{ Titles: string[]; Processes: string[][] }> {
+    const container = this.Client.getContainer(containerId);
+    return await container.top();
+  }
+
+  public async RecreateContainerWithNewImage(
+    oldContainerId: string,
+    newImage: string
+  ): Promise<string> {
+    await this.PullImageIfNotExists(newImage);
+    const inspect = await this.InspectContainer(oldContainerId);
+    const wasRunning = Boolean(inspect.State.Running);
+    const containerName = inspect.Name.replace(/^\//, "");
+
+    if (wasRunning) {
+      await this.StopContainer(oldContainerId, 5);
+    }
+    await this.RemoveContainer(oldContainerId, true);
+
+    const newContainer = await this.Client.createContainer({
+      name: containerName,
+      Image: newImage,
+      Cmd: inspect.Config.Cmd,
+      Env: inspect.Config.Env,
+      ExposedPorts: inspect.Config.ExposedPorts,
+      HostConfig: inspect.HostConfig,
+      AttachStdin: inspect.Config.AttachStdin,
+      AttachStdout: inspect.Config.AttachStdout,
+      AttachStderr: inspect.Config.AttachStderr,
+      OpenStdin: inspect.Config.OpenStdin,
+      StdinOnce: inspect.Config.StdinOnce,
+      Tty: inspect.Config.Tty,
+    });
+
+    if (wasRunning) {
+      await newContainer.start();
+    }
+
+    return newContainer.id;
+  }
 }
