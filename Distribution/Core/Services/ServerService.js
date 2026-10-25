@@ -949,4 +949,61 @@ export class ServerService {
         }
         return candidate;
     }
+    async GrepFiles(serverId, pattern, maxResults = 40) {
+        return await this.VolumeService.GrepVolumeFiles(serverId, pattern, maxResults);
+    }
+    async SendTestAlertWebhook(serverId) {
+        const server = this.Servers.get(serverId);
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
+        }
+        const webhookUrl = server.AlertWebhookUrl;
+        if (!webhookUrl) {
+            throw new Error("No Alert Webhook URL configured on this server");
+        }
+        try {
+            const payload = {
+                Event: "TEST_ALERT",
+                ServerId: server.Id,
+                ServerName: server.Name,
+                Message: `[TEST] Diagnostic webhook alert test from QiR instance "${server.Name}".`,
+                Timestamp: new Date().toISOString(),
+            };
+            const res = await fetch(webhookUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const text = await res.text();
+            return {
+                Success: res.ok,
+                StatusCode: res.status,
+                ResponseBody: text.slice(0, 200),
+            };
+        }
+        catch (err) {
+            return {
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to connect to webhook URL",
+            };
+        }
+    }
+    async GetServerQuickFacts(serverId) {
+        const server = this.Servers.get(serverId);
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
+        }
+        const inspect = (await this.ContainerManager.InspectContainer(server.ContainerId));
+        const networkSettings = inspect.NetworkSettings || {};
+        const defaultNet = networkSettings.Networks?.bridge || Object.values(networkSettings.Networks || {})[0] || {};
+        return {
+            Architecture: inspect.Platform || "linux/amd64",
+            Driver: inspect.Driver || "overlay2",
+            BridgeIp: defaultNet.IPAddress || networkSettings.IPAddress || "172.17.0.2",
+            MacAddress: defaultNet.MacAddress || networkSettings.MacAddress || "02:42:ac:11:00:02",
+            HostPid: inspect.State?.Pid || 0,
+            StartedAt: inspect.State?.StartedAt || "",
+            ImageSha: (inspect.Image || "").slice(0, 19),
+        };
+    }
 }

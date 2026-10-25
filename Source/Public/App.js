@@ -361,6 +361,18 @@ const Elements = {
   EnvPresetApplyBtn: document.getElementById("EnvPresetApplyBtn"),
   SuggestNextPortBtn: document.getElementById("SuggestNextPortBtn"),
   PortConflictFeedback: document.getElementById("PortConflictFeedback"),
+  DetailFilesGrepBtn: document.getElementById("DetailFilesGrepBtn"),
+  GrepFilesModal: document.getElementById("GrepFilesModal"),
+  GrepFilesForm: document.getElementById("GrepFilesForm"),
+  GrepSearchInput: document.getElementById("GrepSearchInput"),
+  GrepResultsCountBadge: document.getElementById("GrepResultsCountBadge"),
+  GrepResultsTableBody: document.getElementById("GrepResultsTableBody"),
+  FactArchBadge: document.getElementById("FactArchBadge"),
+  FactHostPidBadge: document.getElementById("FactHostPidBadge"),
+  FactBridgeIpBadge: document.getElementById("FactBridgeIpBadge"),
+  FactMacAddressBadge: document.getElementById("FactMacAddressBadge"),
+  FactDriverBadge: document.getElementById("FactDriverBadge"),
+  FactImageDigestBadge: document.getElementById("FactImageDigestBadge"),
 };
 
 function GetBootstrapModal(element) {
@@ -735,6 +747,7 @@ function SwitchDetailTab(tabName) {
       RenderServerLifecycle(server);
     }
     FetchServerChanges(ActiveDetailServerId);
+    FetchServerQuickFacts(ActiveDetailServerId);
   } else if (tabName === "Config") {
     RenderServerConfigTab();
   } else if (tabName === "Networking") {
@@ -1303,6 +1316,28 @@ function RenderServersTable() {
     filtered = filtered.filter((s) => s.TemplateId.includes("minecraft"));
   } else if (ActiveServerFilter === "bots") {
     filtered = filtered.filter((s) => s.TemplateId.includes("bot"));
+  }
+
+  const countAll = Servers.length;
+  const countRunning = Servers.filter((s) => s.Status === "Running").length;
+  const countStopped = Servers.filter((s) => s.Status === "Stopped").length;
+  const countError = Servers.filter((s) => s.Status === "Error" || (s.ExitCode && s.ExitCode !== 0)).length;
+
+  const elAll = document.getElementById("CountStatusAll");
+  if (elAll) elAll.textContent = String(countAll);
+  const elRun = document.getElementById("CountStatusRunning");
+  if (elRun) elRun.textContent = String(countRunning);
+  const elStop = document.getElementById("CountStatusStopped");
+  if (elStop) elStop.textContent = String(countStopped);
+  const elErr = document.getElementById("CountStatusError");
+  if (elErr) elErr.textContent = String(countError);
+
+  if (ActiveStatusFilter && ActiveStatusFilter !== "all") {
+    if (ActiveStatusFilter === "Error") {
+      filtered = filtered.filter((s) => s.Status === "Error" || (s.ExitCode && s.ExitCode !== 0));
+    } else {
+      filtered = filtered.filter((s) => s.Status === ActiveStatusFilter);
+    }
   }
 
   if (filterText) {
@@ -3935,6 +3970,28 @@ function SetupExtraServerFeatures() {
   if (Elements.SuggestNextPortBtn) {
     Elements.SuggestNextPortBtn.addEventListener("click", HandleSuggestNextPort);
   }
+  if (Elements.DetailFilesGrepBtn) {
+    Elements.DetailFilesGrepBtn.addEventListener("click", () => {
+      const modal = GetBootstrapModal(Elements.GrepFilesModal);
+      if (modal) modal.show();
+    });
+  }
+  if (Elements.GrepFilesForm) {
+    Elements.GrepFilesForm.addEventListener("submit", HandleGrepSubmit);
+  }
+  const statusPills = document.querySelectorAll(".StatusFilterPill");
+  for (const pill of statusPills) {
+    pill.addEventListener("click", () => {
+      statusPills.forEach((p) => {
+        p.classList.remove("btn-primary", "active");
+        p.classList.add("btn-outline-secondary");
+      });
+      pill.classList.remove("btn-outline-secondary");
+      pill.classList.add("btn-primary", "active");
+      ActiveStatusFilter = pill.dataset.status;
+      RenderServersTable();
+    });
+  }
 }
 
 let RawInspectData = null;
@@ -4791,4 +4848,84 @@ async function HandleSuggestNextPort() {
     Elements.SuggestNextPortBtn.disabled = false;
     Elements.SuggestNextPortBtn.innerHTML = `<i class="bi bi-lightbulb me-1"></i> Suggest Next Open Port`;
   }
+}
+
+let ActiveStatusFilter = "all";
+
+async function HandleGrepSubmit(e) {
+  e.preventDefault();
+  const pattern = Elements.GrepSearchInput?.value.trim();
+  if (!pattern || !ActiveDetailServerId) return;
+
+  const submitBtn = document.getElementById("GrepSubmitBtn");
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Searching...`;
+  }
+  if (Elements.GrepResultsTableBody) {
+    Elements.GrepResultsTableBody.innerHTML = `<tr><td colspan="2" class="text-center py-4 text-body-secondary font-monospace"><i class="bi bi-hourglass-split me-1"></i> Searching across volume files...</td></tr>`;
+  }
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/files/grep`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Pattern: pattern, MaxResults: 40 }),
+    });
+    const json = await res.json();
+    if (json.Success && Array.isArray(json.Data)) {
+      if (Elements.GrepResultsCountBadge) Elements.GrepResultsCountBadge.textContent = `${json.Data.length} matches`;
+      if (json.Data.length === 0) {
+        if (Elements.GrepResultsTableBody) {
+          Elements.GrepResultsTableBody.innerHTML = `<tr><td colspan="2" class="text-center py-4 text-body-secondary font-monospace">No matches found for pattern "${EscapeHtml(pattern)}".</td></tr>`;
+        }
+      } else {
+        if (Elements.GrepResultsTableBody) {
+          Elements.GrepResultsTableBody.innerHTML = "";
+          for (const match of json.Data) {
+            const tr = document.createElement("tr");
+            tr.style.cursor = "pointer";
+            tr.innerHTML = `
+              <td class="ps-3 py-2">
+                <span class="text-primary fw-semibold">${EscapeHtml(match.File)}</span>
+                <span class="badge text-bg-secondary ms-1">:${match.Line}</span>
+              </td>
+              <td class="py-2 text-body-secondary text-truncate" style="max-width: 450px;">${EscapeHtml(match.Content)}</td>
+            `;
+            tr.addEventListener("click", () => {
+              const modal = GetBootstrapModal(Elements.GrepFilesModal);
+              if (modal) modal.hide();
+              OpenFileEditor(ActiveDetailServerId, match.File);
+            });
+            Elements.GrepResultsTableBody.appendChild(tr);
+          }
+        }
+      }
+    } else {
+      ShowToast("Grep failed: " + (json.Error || "Search error"), "error");
+    }
+  } catch {
+    ShowToast("Network error executing volume grep", "error");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = "Search";
+    }
+  }
+}
+
+async function FetchServerQuickFacts(serverId) {
+  try {
+    const res = await fetch(`/api/servers/${serverId}/quick-facts`);
+    const json = await res.json();
+    if (json.Success && json.Data) {
+      const d = json.Data;
+      if (Elements.FactArchBadge) Elements.FactArchBadge.textContent = d.Architecture;
+      if (Elements.FactHostPidBadge) Elements.FactHostPidBadge.textContent = d.HostPid ? `PID ${d.HostPid}` : "PID -";
+      if (Elements.FactBridgeIpBadge) Elements.FactBridgeIpBadge.textContent = d.BridgeIp;
+      if (Elements.FactMacAddressBadge) Elements.FactMacAddressBadge.textContent = d.MacAddress;
+      if (Elements.FactDriverBadge) Elements.FactDriverBadge.textContent = d.Driver;
+      if (Elements.FactImageDigestBadge) Elements.FactImageDigestBadge.textContent = d.ImageSha || "-";
+    }
+  } catch {}
 }

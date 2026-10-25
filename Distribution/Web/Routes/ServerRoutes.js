@@ -61,4 +61,7 @@ export async function ServerRoutes(fastify) {
     fastify.post("/servers/:Id/network/sockets", controller.ScanServerSockets);
     fastify.post("/servers/:Id/db/query", controller.ExecuteDatabaseQuery);
     fastify.get("/servers/ports/suggest", controller.SuggestAvailablePort);
+    fastify.post("/servers/:Id/files/grep", controller.GrepFiles);
+    fastify.post("/servers/:Id/alert-webhook/test", controller.SendTestAlertWebhook);
+    fastify.get("/servers/:Id/quick-facts", controller.GetServerQuickFacts);
 }

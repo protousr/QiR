@@ -182,4 +182,56 @@ export class VolumeService {
     await execFileAsync("tar", tarArgs);
     return safeArchiveName;
   }
+
+  public async GrepVolumeFiles(
+    serverId: string,
+    pattern: string,
+    maxResults: number = 40
+  ): Promise<Array<{ File: string; Line: number; Content: string }>> {
+    const volumeDir = this.GetSafePath(serverId, "");
+    const results: Array<{ File: string; Line: number; Content: string }> = [];
+    const regex = new RegExp(pattern, "i");
+
+    const walk = async (currentDir: string, relPrefix: string): Promise<void> => {
+      if (results.length >= maxResults) return;
+      let entries = [];
+      try {
+        entries = await fs.readdir(currentDir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+
+      for (const entry of entries) {
+        if (results.length >= maxResults) break;
+        const entryRel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+        const fullPath = path.join(currentDir, entry.name);
+
+        if (entry.isDirectory()) {
+          if (entry.name !== "node_modules" && entry.name !== ".git") {
+            await walk(fullPath, entryRel);
+          }
+        } else if (entry.isFile()) {
+          try {
+            const stat = await fs.stat(fullPath);
+            if (stat.size > 1024 * 512) continue;
+            const content = await fs.readFile(fullPath, "utf8");
+            const lines = content.split(/\r?\n/);
+            for (let i = 0; i < lines.length; i++) {
+              if (results.length >= maxResults) break;
+              if (regex.test(lines[i])) {
+                results.push({
+                  File: entryRel,
+                  Line: i + 1,
+                  Content: lines[i].trim().slice(0, 150),
+                });
+              }
+            }
+          } catch {}
+        }
+      }
+    };
+
+    await walk(volumeDir, "");
+    return results;
+  }
 }

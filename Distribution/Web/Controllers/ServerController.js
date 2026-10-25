@@ -741,4 +741,45 @@ export class ServerController {
             });
         }
     };
+    GrepFiles = async (request, reply) => {
+        try {
+            const { Pattern, MaxResults } = request.body || {};
+            if (!Pattern || typeof Pattern !== "string") {
+                reply.status(400).send({ Success: false, Error: "Pattern string is required" });
+                return;
+            }
+            const matches = await this.ServerService.GrepFiles(request.params.Id, Pattern, MaxResults || 40);
+            reply.send({ Success: true, Data: matches });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to search files",
+            });
+        }
+    };
+    SendTestAlertWebhook = async (request, reply) => {
+        try {
+            const result = await this.ServerService.SendTestAlertWebhook(request.params.Id);
+            reply.send({ Success: true, Data: result });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to test alert webhook",
+            });
+        }
+    };
+    GetServerQuickFacts = async (request, reply) => {
+        try {
+            const facts = await this.ServerService.GetServerQuickFacts(request.params.Id);
+            reply.send({ Success: true, Data: facts });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to fetch container quick facts",
+            });
+        }
+    };
 }
