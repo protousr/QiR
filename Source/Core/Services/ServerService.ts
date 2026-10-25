@@ -86,6 +86,8 @@ export class ServerService {
         server.Image = inspect.Config.Image;
         server.OomKilled = Boolean(inspect.State.OOMKilled);
         server.ExitCode = typeof inspect.State.ExitCode === "number" ? inspect.State.ExitCode : 0;
+        server.RestartCount = inspect.RestartCount ?? 0;
+        server.FinishedAt = inspect.State?.FinishedAt || "";
         server.HealthStatus = (inspect.State.Health?.Status as "healthy" | "unhealthy" | "starting") || "none";
         if (inspect.State.Health?.Log) {
           server.HealthLogs = (inspect.State.Health.Log as Array<{ Start?: string; End?: string; ExitCode?: number; Output?: string }>)
@@ -284,6 +286,8 @@ export class ServerService {
       server.Image = inspect.Config.Image;
       server.OomKilled = Boolean(inspect.State.OOMKilled);
       server.ExitCode = typeof inspect.State.ExitCode === "number" ? inspect.State.ExitCode : 0;
+      server.RestartCount = inspect.RestartCount ?? 0;
+      server.FinishedAt = inspect.State?.FinishedAt || "";
       server.HealthStatus = (inspect.State.Health?.Status as "healthy" | "unhealthy" | "starting") || "none";
       if (inspect.HostConfig?.RestartPolicy?.Name) {
         server.RestartPolicy = inspect.HostConfig.RestartPolicy.Name as
@@ -1037,5 +1041,78 @@ export class ServerService {
       } catch {}
     }
     return deletedCount;
+  }
+
+  public async GetServerFilesystemChanges(
+    serverId: string
+  ): Promise<Array<{ Path: string; Kind: number }>> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+    return await this.ContainerManager.GetContainerChanges(server.ContainerId);
+  }
+
+  public async ScanServerSockets(
+    serverId: string
+  ): Promise<
+    Array<{
+      Protocol: string;
+      LocalAddress: string;
+      Port: number;
+      ForeignAddress: string;
+      State: string;
+      Process?: string;
+    }>
+  > {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+
+    const result = await this.ContainerManager.ExecuteCommand(server.ContainerId, [
+      "sh",
+      "-c",
+      "ss -tulpn 2>/dev/null || netstat -tlpn 2>/dev/null || cat /proc/net/tcp 2>/dev/null || echo ''",
+    ]);
+
+    const output = result.Output || "";
+    const lines = output.split("\n");
+    const sockets: Array<{
+      Protocol: string;
+      LocalAddress: string;
+      Port: number;
+      ForeignAddress: string;
+      State: string;
+      Process?: string;
+    }> = [];
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("Proto") || line.startsWith("Netid") || line.startsWith("Active")) continue;
+      const parts = line.split(/\s+/);
+      if (parts.length >= 4) {
+        const proto = parts[0];
+        const state = parts.length > 5 && (parts[1] === "LISTEN" || parts[5] === "LISTEN") ? "LISTEN" : (parts[1] || "LISTEN");
+        const local = parts.find((p) => p.includes(":") && !p.startsWith("users:") && !p.startsWith("pid=")) || parts[3] || parts[4];
+        if (local && local.includes(":")) {
+          const lastColon = local.lastIndexOf(":");
+          const addr = local.slice(0, lastColon) || "0.0.0.0";
+          const port = Number(local.slice(lastColon + 1)) || 0;
+          if (port > 0) {
+            sockets.push({
+              Protocol: proto,
+              LocalAddress: addr,
+              Port: port,
+              ForeignAddress: "*:*",
+              State: state,
+              Process: parts[parts.length - 1] || "",
+            });
+          }
+        }
+      }
+    }
+
+    return sockets;
   }
 }

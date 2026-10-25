@@ -271,6 +271,13 @@ export class ContainerManager {
     return await container.top();
   }
 
+  public async GetContainerChanges(
+    containerId: string
+  ): Promise<Array<{ Path: string; Kind: number }>> {
+    const container = this.Client.getContainer(containerId);
+    return await (container.changes() as Promise<Array<{ Path: string; Kind: number }>>);
+  }
+
   public async RecreateContainerWithNewImage(
     oldContainerId: string,
     newImage: string

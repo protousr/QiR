@@ -338,6 +338,18 @@ const Elements = {
   DetailAddTagBtn: document.getElementById("DetailAddTagBtn"),
   DetailHealthcheckStatusBadge: document.getElementById("DetailHealthcheckStatusBadge"),
   DetailHealthcheckTableBody: document.getElementById("DetailHealthcheckTableBody"),
+  DetailRestartCountBadge: document.getElementById("DetailRestartCountBadge"),
+  DetailRestartCountVal: document.getElementById("DetailRestartCountVal"),
+  DetailOomKilledBadge: document.getElementById("DetailOomKilledBadge"),
+  DetailExitCodeBadge: document.getElementById("DetailExitCodeBadge"),
+  DetailFinishedAtBadge: document.getElementById("DetailFinishedAtBadge"),
+  DetailChangesCountBadge: document.getElementById("DetailChangesCountBadge"),
+  DetailRefreshChangesBtn: document.getElementById("DetailRefreshChangesBtn"),
+  DetailChangesTableBody: document.getElementById("DetailChangesTableBody"),
+  EnvSearchInput: document.getElementById("EnvSearchInput"),
+  EnvVarsCountBadge: document.getElementById("EnvVarsCountBadge"),
+  DetailScanSocketsBtn: document.getElementById("DetailScanSocketsBtn"),
+  DetailSocketsTableBody: document.getElementById("DetailSocketsTableBody"),
 };
 
 function GetBootstrapModal(element) {
@@ -707,7 +719,11 @@ function SwitchDetailTab(tabName) {
     FetchServerProcesses(ActiveDetailServerId);
     FetchServerDockerCompose(ActiveDetailServerId);
     const server = Servers.find((s) => s.Id === ActiveDetailServerId);
-    if (server) RenderServerHealthcheck(server);
+    if (server) {
+      RenderServerHealthcheck(server);
+      RenderServerLifecycle(server);
+    }
+    FetchServerChanges(ActiveDetailServerId);
   } else if (tabName === "Config") {
     RenderServerConfigTab();
   } else if (tabName === "Networking") {
@@ -2842,6 +2858,8 @@ function RenderServerEnvironmentTab() {
   for (const [key, value] of entries) {
     AddEnvRow(key, value);
   }
+  const badge = document.getElementById("EnvVarsCountBadge");
+  if (badge) badge.textContent = `${entries.length} variables`;
 }
 
 function AddEnvRow(key = "", value = "") {
@@ -2893,6 +2911,26 @@ function SetupEnvironmentTabListeners() {
   const addBtn = document.getElementById("EnvAddRowBtn");
   if (addBtn) {
     addBtn.addEventListener("click", () => AddEnvRow());
+  }
+
+  const searchInput = document.getElementById("EnvSearchInput");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const rows = document.querySelectorAll(".EnvTableRow");
+      let visibleCount = 0;
+      rows.forEach((row) => {
+        const k = row.querySelector(".EnvKeyInput")?.value.toLowerCase() || "";
+        const v = row.querySelector(".EnvValueInput")?.value.toLowerCase() || "";
+        const match = !q || k.includes(q) || v.includes(q);
+        row.style.display = match ? "" : "none";
+        if (match) visibleCount++;
+      });
+      const badge = document.getElementById("EnvVarsCountBadge");
+      if (badge) {
+        badge.textContent = q ? `${visibleCount} of ${rows.length}` : `${rows.length} variables`;
+      }
+    });
   }
 
   const maskBtn = document.getElementById("EnvToggleMaskBtn");
@@ -3844,6 +3882,12 @@ function SetupExtraServerFeatures() {
       }
     });
   }
+  if (Elements.DetailRefreshChangesBtn) {
+    Elements.DetailRefreshChangesBtn.addEventListener("click", () => FetchServerChanges(ActiveDetailServerId));
+  }
+  if (Elements.DetailScanSocketsBtn) {
+    Elements.DetailScanSocketsBtn.addEventListener("click", () => HandleScanSockets(ActiveDetailServerId));
+  }
 }
 
 let RawInspectData = null;
@@ -4449,5 +4493,148 @@ async function HandleFilesBatchCompress() {
     ShowToast("Network error compressing files", "error");
   } finally {
     Elements.FilesBatchCompressBtn.disabled = false;
+  }
+}
+
+function RenderServerLifecycle(server) {
+  if (!Elements.DetailRestartCountBadge) return;
+  const restarts = server.RestartCount ?? 0;
+  if (Elements.DetailRestartCountVal) Elements.DetailRestartCountVal.textContent = String(restarts);
+  if (restarts === 0) {
+    Elements.DetailRestartCountBadge.className = "badge text-bg-success";
+    Elements.DetailRestartCountBadge.textContent = "0 Restarts (Stable)";
+  } else {
+    Elements.DetailRestartCountBadge.className = "badge text-bg-warning text-dark";
+    Elements.DetailRestartCountBadge.textContent = `${restarts} Restarts`;
+  }
+
+  if (Elements.DetailOomKilledBadge) {
+    if (server.OomKilled) {
+      Elements.DetailOomKilledBadge.className = "badge text-bg-danger";
+      Elements.DetailOomKilledBadge.textContent = "OOM Killed (Out of Memory)";
+    } else {
+      Elements.DetailOomKilledBadge.className = "badge text-bg-success";
+      Elements.DetailOomKilledBadge.textContent = "No OOM (Healthy)";
+    }
+  }
+
+  if (Elements.DetailExitCodeBadge) {
+    const code = server.ExitCode ?? 0;
+    if (code === 0) {
+      Elements.DetailExitCodeBadge.className = "badge text-bg-secondary";
+      Elements.DetailExitCodeBadge.textContent = "Code 0 (Clean Exit)";
+    } else if (code === 137) {
+      Elements.DetailExitCodeBadge.className = "badge text-bg-danger";
+      Elements.DetailExitCodeBadge.textContent = "Code 137 (SIGKILL / OOM)";
+    } else if (code === 143) {
+      Elements.DetailExitCodeBadge.className = "badge text-bg-warning text-dark";
+      Elements.DetailExitCodeBadge.textContent = "Code 143 (SIGTERM Stopped)";
+    } else {
+      Elements.DetailExitCodeBadge.className = "badge text-bg-danger";
+      Elements.DetailExitCodeBadge.textContent = `Code ${code} (Error)`;
+    }
+  }
+
+  if (Elements.DetailFinishedAtBadge) {
+    if (server.FinishedAt && server.FinishedAt !== "0001-01-01T00:00:00Z") {
+      Elements.DetailFinishedAtBadge.textContent = new Date(server.FinishedAt).toLocaleString();
+    } else {
+      Elements.DetailFinishedAtBadge.textContent = "Never (Active)";
+    }
+  }
+}
+
+async function FetchServerChanges(serverId) {
+  if (!Elements.DetailChangesTableBody) return;
+  Elements.DetailChangesTableBody.innerHTML = `
+    <tr><td colspan="2" class="text-center py-3 text-body-secondary font-monospace small"><i class="bi bi-hourglass-split me-1"></i> Scanning container filesystem changes...</td></tr>
+  `;
+  try {
+    const res = await fetch(`/api/servers/${serverId}/diff`);
+    const json = await res.json();
+    if (json.Success && Array.isArray(json.Data)) {
+      RenderServerChangesTable(json.Data);
+    } else {
+      Elements.DetailChangesTableBody.innerHTML = `
+        <tr><td colspan="2" class="text-center py-3 text-body-secondary font-monospace small">No filesystem drift recorded for this container.</td></tr>
+      `;
+      if (Elements.DetailChangesCountBadge) Elements.DetailChangesCountBadge.textContent = "0 changes";
+    }
+  } catch {
+    Elements.DetailChangesTableBody.innerHTML = `
+      <tr><td colspan="2" class="text-center py-3 text-danger font-monospace small">Failed to inspect container filesystem changes.</td></tr>
+    `;
+  }
+}
+
+function RenderServerChangesTable(changes) {
+  if (!Elements.DetailChangesTableBody) return;
+  if (Elements.DetailChangesCountBadge) {
+    Elements.DetailChangesCountBadge.textContent = `${changes.length} changes`;
+  }
+  if (changes.length === 0) {
+    Elements.DetailChangesTableBody.innerHTML = `
+      <tr><td colspan="2" class="text-center py-3 text-body-secondary font-monospace small">Container layer matches base image perfectly (0 modifications).</td></tr>
+    `;
+    return;
+  }
+  Elements.DetailChangesTableBody.innerHTML = "";
+  for (const c of changes) {
+    const tr = document.createElement("tr");
+    let kindBadge = '<span class="badge text-bg-warning">Modified (C)</span>';
+    if (c.Kind === 0) kindBadge = '<span class="badge text-bg-warning">Modified (C)</span>';
+    else if (c.Kind === 1) kindBadge = '<span class="badge text-bg-success">Added (A)</span>';
+    else if (c.Kind === 2) kindBadge = '<span class="badge text-bg-danger">Deleted (D)</span>';
+
+    tr.innerHTML = `
+      <td class="ps-3 py-2">${kindBadge}</td>
+      <td class="py-2 font-monospace small text-body">${EscapeHtml(c.Path)}</td>
+    `;
+    Elements.DetailChangesTableBody.appendChild(tr);
+  }
+}
+
+async function HandleScanSockets(serverId) {
+  if (!Elements.DetailSocketsTableBody) return;
+  if (Elements.DetailScanSocketsBtn) Elements.DetailScanSocketsBtn.disabled = true;
+  Elements.DetailSocketsTableBody.innerHTML = `
+    <tr><td colspan="6" class="text-center py-3 text-body-secondary font-monospace small"><i class="bi bi-hourglass-split me-1"></i> Probing internal network sockets (ss / netstat)...</td></tr>
+  `;
+  try {
+    const res = await fetch(`/api/servers/${serverId}/network/sockets`, { method: "POST" });
+    const json = await res.json();
+    if (json.Success && Array.isArray(json.Data) && json.Data.length > 0) {
+      Elements.DetailSocketsTableBody.innerHTML = "";
+      for (const s of json.Data) {
+        const tr = document.createElement("tr");
+        const isLoopback = s.LocalAddress === "127.0.0.1" || s.LocalAddress === "::1" || s.LocalAddress.startsWith("127.");
+        const advisoryBadge = isLoopback
+          ? '<span class="badge text-bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Loopback Only</span>'
+          : '<span class="badge text-bg-success"><i class="bi bi-check-circle-fill me-1"></i>Wildcard Bound</span>';
+
+        tr.innerHTML = `
+          <td class="ps-3 py-2 font-monospace small fw-bold text-primary">${EscapeHtml(s.Protocol.toUpperCase())}</td>
+          <td class="py-2 font-monospace small">${EscapeHtml(s.LocalAddress)}</td>
+          <td class="py-2 font-monospace small fw-semibold">${s.Port}</td>
+          <td class="py-2"><span class="badge text-bg-secondary font-monospace">${EscapeHtml(s.State)}</span></td>
+          <td class="py-2 font-monospace small text-body-secondary text-truncate" style="max-width: 200px;">${EscapeHtml(s.Process || "-")}</td>
+          <td class="py-2 text-end pe-3">${advisoryBadge}</td>
+        `;
+        Elements.DetailSocketsTableBody.appendChild(tr);
+      }
+      ShowToast(`Discovered ${json.Data.length} listening sockets inside container`, "success");
+    } else {
+      Elements.DetailSocketsTableBody.innerHTML = `
+        <tr><td colspan="6" class="text-center py-3 text-body-secondary font-monospace small">No active listening TCP/UDP ports detected or container has no net tools.</td></tr>
+      `;
+      ShowToast("No listening sockets detected", "info");
+    }
+  } catch {
+    Elements.DetailSocketsTableBody.innerHTML = `
+      <tr><td colspan="6" class="text-center py-3 text-danger font-monospace small">Network probe execution error.</td></tr>
+    `;
+    ShowToast("Failed to scan sockets", "error");
+  } finally {
+    if (Elements.DetailScanSocketsBtn) Elements.DetailScanSocketsBtn.disabled = false;
   }
 }

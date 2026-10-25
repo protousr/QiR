@@ -210,6 +210,10 @@ export class ContainerManager {
         const container = this.Client.getContainer(containerId);
         return await container.top();
     }
+    async GetContainerChanges(containerId) {
+        const container = this.Client.getContainer(containerId);
+        return await container.changes();
+    }
     async RecreateContainerWithNewImage(oldContainerId, newImage) {
         await this.PullImageIfNotExists(newImage);
         const inspect = await this.InspectContainer(oldContainerId);

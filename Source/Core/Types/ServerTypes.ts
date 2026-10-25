@@ -51,6 +51,8 @@ export interface IServerInstance {
   LastCrashTime?: string;
   Tags?: string[];
   HealthLogs?: Array<{ Start: string; End: string; ExitCode: number; Output: string }>;
+  RestartCount?: number;
+  FinishedAt?: string;
 }
 
 export interface ICreateServerInput {

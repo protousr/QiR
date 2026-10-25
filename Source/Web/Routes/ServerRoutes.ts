@@ -144,4 +144,6 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
     "/servers/:Id/files/batch-delete",
     controller.BatchDeleteFiles
   );
+  fastify.get<{ Params: { Id: string } }>("/servers/:Id/diff", controller.GetServerFilesystemChanges);
+  fastify.post<{ Params: { Id: string } }>("/servers/:Id/network/sockets", controller.ScanServerSockets);
 }

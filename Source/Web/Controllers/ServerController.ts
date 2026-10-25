@@ -966,4 +966,34 @@ export class ServerController {
       });
     }
   };
+
+  public GetServerFilesystemChanges = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const changes = await this.ServerService.GetServerFilesystemChanges(request.params.Id);
+      reply.send({ Success: true, Data: changes });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to fetch container changes",
+      });
+    }
+  };
+
+  public ScanServerSockets = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const sockets = await this.ServerService.ScanServerSockets(request.params.Id);
+      reply.send({ Success: true, Data: sockets });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to scan container sockets",
+      });
+    }
+  };
 }

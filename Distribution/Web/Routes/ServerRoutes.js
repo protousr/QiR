@@ -57,4 +57,6 @@ export async function ServerRoutes(fastify) {
     fastify.get("/servers/:Id/compose", controller.GetDockerCompose);
     fastify.put("/servers/:Id/tags", controller.UpdateServerTags);
     fastify.post("/servers/:Id/files/batch-delete", controller.BatchDeleteFiles);
+    fastify.get("/servers/:Id/diff", controller.GetServerFilesystemChanges);
+    fastify.post("/servers/:Id/network/sockets", controller.ScanServerSockets);
 }

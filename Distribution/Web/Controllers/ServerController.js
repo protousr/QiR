@@ -687,4 +687,28 @@ export class ServerController {
             });
         }
     };
+    GetServerFilesystemChanges = async (request, reply) => {
+        try {
+            const changes = await this.ServerService.GetServerFilesystemChanges(request.params.Id);
+            reply.send({ Success: true, Data: changes });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to fetch container changes",
+            });
+        }
+    };
+    ScanServerSockets = async (request, reply) => {
+        try {
+            const sockets = await this.ServerService.ScanServerSockets(request.params.Id);
+            reply.send({ Success: true, Data: sockets });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to scan container sockets",
+            });
+        }
+    };
 }
