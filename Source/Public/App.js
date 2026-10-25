@@ -88,8 +88,8 @@ async function CheckAuthentication() {
     const setupJson = await setupRes.json();
 
     if (setupJson.Success && setupJson.Data.SetupRequired) {
-      Elements.AuthOverlay.style.display = "flex";
-      Elements.AppWrapper.style.setProperty("display", "none", "important");
+      Elements.AuthOverlay.classList.remove("hidden");
+      Elements.AppWrapper.classList.add("hidden");
       Elements.LoginForm.classList.add("d-none");
       Elements.SetupForm.classList.remove("d-none");
       Elements.AuthTitle.textContent = "Initialize Master Admin";
@@ -107,21 +107,21 @@ async function CheckAuthentication() {
       }
     }
 
-    Elements.AuthOverlay.style.display = "flex";
-    Elements.AppWrapper.style.setProperty("display", "none", "important");
+    Elements.AuthOverlay.classList.remove("hidden");
+    Elements.AppWrapper.classList.add("hidden");
     Elements.LoginForm.classList.remove("d-none");
     Elements.SetupForm.classList.add("d-none");
     Elements.AuthTitle.textContent = "Sign In";
     Elements.AuthSubtitle.textContent = "Authenticate to access your private Docker panel.";
   } catch {
-    Elements.AuthOverlay.style.display = "flex";
-    Elements.AppWrapper.style.setProperty("display", "none", "important");
+    Elements.AuthOverlay.classList.remove("hidden");
+    Elements.AppWrapper.classList.add("hidden");
   }
 }
 
 function OnAuthenticated() {
-  Elements.AuthOverlay.style.display = "none";
-  Elements.AppWrapper.style.removeProperty("display");
+  Elements.AuthOverlay.classList.add("hidden");
+  Elements.AppWrapper.classList.remove("hidden");
   Elements.CurrentUsernameText.textContent = CurrentUser ? CurrentUser.Username : "Admin";
 
   InitializeDashboard();
@@ -132,6 +132,7 @@ function SetupAuthEventListeners() {
     e.preventDefault();
     HideAuthError();
     Elements.LoginSubmitBtn.disabled = true;
+    Elements.LoginSubmitBtn.textContent = "Signing In...";
 
     try {
       const res = await fetch("/api/auth/login", {
@@ -155,6 +156,7 @@ function SetupAuthEventListeners() {
       ShowAuthError("Network error attempting login");
     } finally {
       Elements.LoginSubmitBtn.disabled = false;
+      Elements.LoginSubmitBtn.textContent = "Sign In";
     }
   });
 
@@ -177,6 +179,7 @@ function SetupAuthEventListeners() {
     }
 
     Elements.SetupSubmitBtn.disabled = true;
+    Elements.SetupSubmitBtn.textContent = "Initializing...";
 
     try {
       const res = await fetch("/api/auth/setup", {
@@ -197,6 +200,7 @@ function SetupAuthEventListeners() {
       ShowAuthError("Network error during setup");
     } finally {
       Elements.SetupSubmitBtn.disabled = false;
+      Elements.SetupSubmitBtn.textContent = "Initialize & Secure Panel";
     }
   });
 
@@ -253,23 +257,23 @@ function SwitchView(viewName) {
   Elements.NavTemplates.classList.remove("active");
   Elements.NavSystem.classList.remove("active");
 
-  Elements.SectionServers.style.display = "none";
-  Elements.SectionTemplates.style.display = "none";
-  Elements.SectionSystem.style.display = "none";
+  Elements.SectionServers.classList.add("d-none");
+  Elements.SectionTemplates.classList.add("d-none");
+  Elements.SectionSystem.classList.add("d-none");
 
   if (viewName === "Servers") {
     Elements.NavServers.classList.add("active");
-    Elements.SectionServers.style.display = "block";
+    Elements.SectionServers.classList.remove("d-none");
     Elements.PageTitle.textContent = "Container Instances";
     FetchServers();
   } else if (viewName === "Templates") {
     Elements.NavTemplates.classList.add("active");
-    Elements.SectionTemplates.style.display = "block";
+    Elements.SectionTemplates.classList.remove("d-none");
     Elements.PageTitle.textContent = "Hosting Blueprints & Templates";
     RenderTemplatesView();
   } else if (viewName === "System") {
     Elements.NavSystem.classList.add("active");
-    Elements.SectionSystem.style.display = "block";
+    Elements.SectionSystem.classList.remove("d-none");
     Elements.PageTitle.textContent = "System & Docker Diagnostics";
     FetchSystemStatus();
   }

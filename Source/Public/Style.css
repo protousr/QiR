@@ -280,6 +280,13 @@ body {
   inset: 0;
   z-index: 1050;
   background-color: var(--qir-bg-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hidden {
+  display: none !important;
 }
 
 .AuthCard {
