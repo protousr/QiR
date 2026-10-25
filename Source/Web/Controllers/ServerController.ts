@@ -1,4 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import fs from "node:fs";
+import path from "node:path";
 import { ServerService } from "../../Core/Services/ServerService.js";
 import { CreateServerSchema, SendCommandSchema } from "../Middleware/ValidationMiddleware.js";
 
@@ -265,7 +267,11 @@ export class ServerController {
   public UpdateServerConfig = async (
     request: FastifyRequest<{
       Params: { Id: string };
-      Body: { EnvironmentVariables?: Record<string, string>; AutoRestart?: boolean };
+      Body: {
+        EnvironmentVariables?: Record<string, string>;
+        AutoRestart?: boolean;
+        Limits?: { Memory?: number; CpuShares?: number };
+      };
     }>,
     reply: FastifyReply
   ): Promise<void> => {
@@ -279,6 +285,191 @@ export class ServerController {
       reply.status(500).send({
         Success: false,
         Error: err instanceof Error ? err.message : "Failed to update configuration",
+      });
+    }
+  };
+
+  public DownloadVolumeFile = async (
+    request: FastifyRequest<{ Params: { Id: string }; Querystring: { FilePath: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const buffer = await this.ServerService.GetVolumeService().GetFileBuffer(
+        request.params.Id,
+        request.query.FilePath
+      );
+      const filename = path.basename(request.query.FilePath);
+      reply.header("Content-Disposition", `attachment; filename="${filename}"`);
+      reply.send(buffer);
+    } catch (err) {
+      reply.status(404).send({ Success: false, Error: "File not found" });
+    }
+  };
+
+  public UploadVolumeFile = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { FilePath: string; ContentBase64: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const buffer = Buffer.from(request.body.ContentBase64, "base64");
+      await this.ServerService.GetVolumeService().WriteFileBuffer(
+        request.params.Id,
+        request.body.FilePath,
+        buffer
+      );
+      reply.send({ Success: true, Message: "File uploaded successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to upload file",
+      });
+    }
+  };
+
+  public CreateVolumeDirectory = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { Path: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.GetVolumeService().CreateDirectory(
+        request.params.Id,
+        request.body.Path
+      );
+      reply.send({ Success: true, Message: "Directory created successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to create directory",
+      });
+    }
+  };
+
+  public RenameVolumeFile = async (
+    request: FastifyRequest<{
+      Params: { Id: string };
+      Body: { OldPath: string; NewPath: string };
+    }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.GetVolumeService().Rename(
+        request.params.Id,
+        request.body.OldPath,
+        request.body.NewPath
+      );
+      reply.send({ Success: true, Message: "Renamed successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to rename",
+      });
+    }
+  };
+
+  public ListBackups = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const backups = await this.ServerService.GetBackupService().ListBackups(request.params.Id);
+      reply.send({ Success: true, Data: backups });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to list backups",
+      });
+    }
+  };
+
+  public CreateBackup = async (
+    request: FastifyRequest<{ Params: { Id: string }; Body?: { Name?: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const backup = await this.ServerService.GetBackupService().CreateBackup(
+        request.params.Id,
+        request.body?.Name
+      );
+      reply.status(201).send({ Success: true, Data: backup });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to create backup",
+      });
+    }
+  };
+
+  public RestoreBackup = async (
+    request: FastifyRequest<{ Params: { Id: string; FileName: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.GetBackupService().RestoreBackup(
+        request.params.Id,
+        request.params.FileName
+      );
+      reply.send({ Success: true, Message: "Backup restored successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to restore backup",
+      });
+    }
+  };
+
+  public DeleteBackup = async (
+    request: FastifyRequest<{ Params: { Id: string; FileName: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      await this.ServerService.GetBackupService().DeleteBackup(
+        request.params.Id,
+        request.params.FileName
+      );
+      reply.send({ Success: true, Message: "Backup deleted successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to delete backup",
+      });
+    }
+  };
+
+  public DownloadBackup = async (
+    request: FastifyRequest<{ Params: { Id: string; FileName: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const filePath = this.ServerService.GetBackupService().GetBackupFilePath(
+        request.params.Id,
+        request.params.FileName
+      );
+      reply.header("Content-Disposition", `attachment; filename="${request.params.FileName}"`);
+      reply.header("Content-Type", "application/gzip");
+      const stream = fs.createReadStream(filePath);
+      reply.send(stream);
+    } catch (err) {
+      reply.status(404).send({ Success: false, Error: "Backup not found" });
+    }
+  };
+
+  public GetServerAuditLogs = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const logs = this.ServerService.GetServerAuditLogs(request.params.Id);
+      reply.send({ Success: true, Data: logs });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to fetch audit logs",
       });
     }
   };

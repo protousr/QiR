@@ -203,4 +203,18 @@ export class DatabaseManager {
     );
     stmt.run(log.Id, log.Timestamp, log.Action, log.IpAddress, log.Details);
   }
+
+  public GetAuditLogs(limit: number = 50): IAuditLogRecord[] {
+    const stmt = this.Database.prepare(
+      "SELECT * FROM AuditLogs ORDER BY Timestamp DESC LIMIT ?"
+    );
+    return stmt.all(limit) as unknown as IAuditLogRecord[];
+  }
+
+  public GetAuditLogsForServer(serverId: string, limit: number = 50): IAuditLogRecord[] {
+    const stmt = this.Database.prepare(
+      "SELECT * FROM AuditLogs WHERE Details LIKE ? ORDER BY Timestamp DESC LIMIT ?"
+    );
+    return stmt.all(`%${serverId}%`, limit) as unknown as IAuditLogRecord[];
+  }
 }

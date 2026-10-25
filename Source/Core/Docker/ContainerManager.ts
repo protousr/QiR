@@ -80,6 +80,18 @@ export class ContainerManager {
     await container.remove({ force, v: true });
   }
 
+  public async UpdateContainerLimits(
+    containerId: string,
+    memoryBytes?: number,
+    nanoCpus?: number
+  ): Promise<void> {
+    const container = this.Client.getContainer(containerId);
+    await container.update({
+      Memory: memoryBytes,
+      NanoCPUs: nanoCpus,
+    });
+  }
+
   public async InspectContainer(containerId: string): Promise<Docker.ContainerInspectInfo> {
     const container = this.Client.getContainer(containerId);
     return await container.inspect();

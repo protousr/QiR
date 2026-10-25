@@ -12,6 +12,8 @@ import { LogStreamer } from "../Docker/LogStreamer.js";
 import { StatsCollector } from "../Docker/StatsCollector.js";
 import { TemplateService } from "./TemplateService.js";
 import { VolumeService } from "./VolumeService.js";
+import { BackupService } from "./BackupService.js";
+import { DatabaseManager, type IAuditLogRecord } from "../Database/DatabaseManager.js";
 import { ConfigInstance } from "../../Config/EnvironmentConfig.js";
 
 export class ServerService {
@@ -21,6 +23,8 @@ export class ServerService {
   private readonly StatsCollector: StatsCollector;
   private readonly TemplateService: TemplateService;
   private readonly VolumeService: VolumeService;
+  private readonly BackupService: BackupService;
+  private readonly DatabaseManager: DatabaseManager;
   private readonly DatabaseFilePath: string;
   private readonly Servers: Map<string, IServerInstance> = new Map();
 
@@ -30,6 +34,8 @@ export class ServerService {
     this.StatsCollector = new StatsCollector();
     this.TemplateService = TemplateService.GetInstance();
     this.VolumeService = new VolumeService();
+    this.BackupService = BackupService.GetInstance();
+    this.DatabaseManager = DatabaseManager.GetInstance();
     this.DatabaseFilePath = path.resolve(ConfigInstance.DataDirectory, "Servers.json");
   }
 
@@ -305,7 +311,11 @@ export class ServerService {
 
   public async UpdateServerConfig(
     serverId: string,
-    updates: { EnvironmentVariables?: Record<string, string>; AutoRestart?: boolean }
+    updates: {
+      EnvironmentVariables?: Record<string, string>;
+      AutoRestart?: boolean;
+      Limits?: { Memory?: number; CpuShares?: number };
+    }
   ): Promise<IServerInstance> {
     const server = this.Servers.get(serverId);
     if (!server) {
@@ -317,11 +327,38 @@ export class ServerService {
     if (updates.AutoRestart !== undefined) {
       server.AutoRestart = updates.AutoRestart;
     }
+    if (updates.Limits) {
+      server.Limits = updates.Limits;
+      if (server.Status === "Running") {
+        try {
+          await this.ContainerManager.UpdateContainerLimits(
+            server.ContainerId,
+            updates.Limits.Memory,
+            updates.Limits.CpuShares ? updates.Limits.CpuShares * 1e7 : undefined
+          );
+        } catch {}
+      }
+    }
     await this.SaveServers();
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "SERVER_CONFIG_UPDATE",
+      IpAddress: "system",
+      Details: `Server ${server.Name} (${serverId}) configuration updated.`,
+    });
     return server;
   }
 
   public GetVolumeService(): VolumeService {
     return this.VolumeService;
+  }
+
+  public GetBackupService(): BackupService {
+    return this.BackupService;
+  }
+
+  public GetServerAuditLogs(serverId: string): IAuditLogRecord[] {
+    return this.DatabaseManager.GetAuditLogsForServer(serverId);
   }
 }

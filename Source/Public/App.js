@@ -78,6 +78,8 @@ const Elements = {
   DetailTabConsole: document.getElementById("DetailTabConsole"),
   DetailCpuMetric: document.getElementById("DetailCpuMetric"),
   DetailRamMetric: document.getElementById("DetailRamMetric"),
+  DetailCpuProgressBar: document.getElementById("DetailCpuProgressBar"),
+  DetailRamProgressBar: document.getElementById("DetailRamProgressBar"),
   DetailConsoleAutoscroll: document.getElementById("DetailConsoleAutoscroll"),
   DetailConsoleClearBtn: document.getElementById("DetailConsoleClearBtn"),
   DetailTerminalOutput: document.getElementById("DetailTerminalOutput"),
@@ -87,15 +89,35 @@ const Elements = {
   DetailTabFiles: document.getElementById("DetailTabFiles"),
   DetailFilesCurrentPath: document.getElementById("DetailFilesCurrentPath"),
   DetailFilesRefreshBtn: document.getElementById("DetailFilesRefreshBtn"),
+  DetailFilesUploadBtn: document.getElementById("DetailFilesUploadBtn"),
+  DetailFilesHiddenInput: document.getElementById("DetailFilesHiddenInput"),
+  DetailFilesNewFolderBtn: document.getElementById("DetailFilesNewFolderBtn"),
   DetailFilesNewFileBtn: document.getElementById("DetailFilesNewFileBtn"),
   DetailFilesTableBody: document.getElementById("DetailFilesTableBody"),
+
+  DetailTabBackups: document.getElementById("DetailTabBackups"),
+  DetailBackupsCountBadge: document.getElementById("DetailBackupsCountBadge"),
+  OpenCreateBackupModalBtn: document.getElementById("OpenCreateBackupModalBtn"),
+  DetailBackupsTableBody: document.getElementById("DetailBackupsTableBody"),
 
   DetailTabConfig: document.getElementById("DetailTabConfig"),
   DetailEnvVarsContainer: document.getElementById("DetailEnvVarsContainer"),
   DetailAddEnvVarBtn: document.getElementById("DetailAddEnvVarBtn"),
+  DetailMemoryLimitSelect: document.getElementById("DetailMemoryLimitSelect"),
+  DetailCpuSharesSelect: document.getElementById("DetailCpuSharesSelect"),
   DetailAutoRestartSwitch: document.getElementById("DetailAutoRestartSwitch"),
   DetailSaveConfigBtn: document.getElementById("DetailSaveConfigBtn"),
   DetailPortsContainer: document.getElementById("DetailPortsContainer"),
+
+  DetailTabNetworking: document.getElementById("DetailTabNetworking"),
+  DetailSubdomainInput: document.getElementById("DetailSubdomainInput"),
+  DetailCaddySnippetPre: document.getElementById("DetailCaddySnippetPre"),
+  DetailCopyCaddyBtn: document.getElementById("DetailCopyCaddyBtn"),
+  DetailNetworkInfoContainer: document.getElementById("DetailNetworkInfoContainer"),
+
+  DetailTabActivity: document.getElementById("DetailTabActivity"),
+  DetailRefreshAuditBtn: document.getElementById("DetailRefreshAuditBtn"),
+  DetailAuditTableBody: document.getElementById("DetailAuditTableBody"),
 
   DetailTabDocker: document.getElementById("DetailTabDocker"),
   DetailDockerInspectPre: document.getElementById("DetailDockerInspectPre"),
@@ -128,6 +150,22 @@ const Elements = {
   NewFileNameInput: document.getElementById("NewFileNameInput"),
   NewFileInitialContentInput: document.getElementById("NewFileInitialContentInput"),
   NewFileSubmitBtn: document.getElementById("NewFileSubmitBtn"),
+
+  NewFolderModal: document.getElementById("NewFolderModal"),
+  NewFolderForm: document.getElementById("NewFolderForm"),
+  NewFolderNameInput: document.getElementById("NewFolderNameInput"),
+  NewFolderSubmitBtn: document.getElementById("NewFolderSubmitBtn"),
+
+  RenameModal: document.getElementById("RenameModal"),
+  RenameForm: document.getElementById("RenameForm"),
+  RenameOldPathInput: document.getElementById("RenameOldPathInput"),
+  RenameNewNameInput: document.getElementById("RenameNewNameInput"),
+  RenameSubmitBtn: document.getElementById("RenameSubmitBtn"),
+
+  CreateBackupModal: document.getElementById("CreateBackupModal"),
+  CreateBackupForm: document.getElementById("CreateBackupForm"),
+  BackupNameInput: document.getElementById("BackupNameInput"),
+  CreateBackupSubmitBtn: document.getElementById("CreateBackupSubmitBtn"),
 
   DeployModal: document.getElementById("DeployModal"),
   DeployServerForm: document.getElementById("DeployServerForm"),
@@ -478,15 +516,24 @@ function SwitchDetailTab(tabName) {
 
   Elements.DetailTabConsole.classList.toggle("d-none", tabName !== "Console");
   Elements.DetailTabFiles.classList.toggle("d-none", tabName !== "Files");
+  Elements.DetailTabBackups.classList.toggle("d-none", tabName !== "Backups");
   Elements.DetailTabConfig.classList.toggle("d-none", tabName !== "Config");
+  Elements.DetailTabNetworking.classList.toggle("d-none", tabName !== "Networking");
+  Elements.DetailTabActivity.classList.toggle("d-none", tabName !== "Activity");
   Elements.DetailTabDocker.classList.toggle("d-none", tabName !== "Docker");
 
   if (tabName === "Files") {
     FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+  } else if (tabName === "Backups") {
+    FetchServerBackups(ActiveDetailServerId);
   } else if (tabName === "Docker") {
     FetchServerInspect(ActiveDetailServerId);
   } else if (tabName === "Config") {
     RenderServerConfigTab();
+  } else if (tabName === "Networking") {
+    RenderServerNetworkingTab();
+  } else if (tabName === "Activity") {
+    FetchServerAuditLogs(ActiveDetailServerId);
   }
 }
 
@@ -523,13 +570,37 @@ function SetupEventListeners() {
     FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
   });
   Elements.DetailFilesNewFileBtn.addEventListener("click", OpenNewFileModal);
+  Elements.DetailFilesNewFolderBtn.addEventListener("click", OpenNewFolderModal);
+  Elements.DetailFilesUploadBtn.addEventListener("click", () => {
+    Elements.DetailFilesHiddenInput.click();
+  });
+  Elements.DetailFilesHiddenInput.addEventListener("change", HandleFileUpload);
+
   Elements.NewFileForm.addEventListener("submit", HandleNewFileSubmit);
+  Elements.NewFolderForm.addEventListener("submit", HandleNewFolderSubmit);
+  Elements.RenameForm.addEventListener("submit", HandleRenameSubmit);
   Elements.FileEditorSaveBtn.addEventListener("click", HandleFileEditorSave);
+
+  Elements.OpenCreateBackupModalBtn.addEventListener("click", OpenCreateBackupModal);
+  Elements.CreateBackupForm.addEventListener("submit", HandleCreateBackupSubmit);
 
   Elements.DetailAddEnvVarBtn.addEventListener("click", () => {
     AddEnvVarRow("", "");
   });
   Elements.DetailSaveConfigBtn.addEventListener("click", HandleSaveServerConfig);
+
+  Elements.DetailSubdomainInput.addEventListener("input", UpdateCaddySnippet);
+  Elements.DetailCopyCaddyBtn.addEventListener("click", () => {
+    navigator.clipboard.writeText(Elements.DetailCaddySnippetPre.textContent);
+    Elements.DetailCopyCaddyBtn.innerHTML = `<i class="bi bi-check2 me-1"></i> Copied!`;
+    setTimeout(() => {
+      Elements.DetailCopyCaddyBtn.innerHTML = `<i class="bi bi-clipboard me-1"></i> Copy Caddyfile Block`;
+    }, 2000);
+  });
+
+  Elements.DetailRefreshAuditBtn.addEventListener("click", () => {
+    FetchServerAuditLogs(ActiveDetailServerId);
+  });
 
   Elements.DetailCopyInspectBtn.addEventListener("click", () => {
     navigator.clipboard.writeText(Elements.DetailDockerInspectPre.textContent);
@@ -951,9 +1022,17 @@ function ConnectWebSockets(serverId) {
       const msg = JSON.parse(event.data);
       if (msg.Type === "Stats" && msg.Data) {
         const stats = msg.Data;
-        Elements.DetailCpuMetric.textContent = `CPU: ${stats.CpuPercentage}%`;
+        const cpuPct = Math.min(100, Math.max(0, stats.CpuPercentage || 0));
+        Elements.DetailCpuMetric.textContent = `${cpuPct.toFixed(1)}%`;
+        Elements.DetailCpuProgressBar.style.width = `${cpuPct}%`;
+        if (cpuPct > 80) Elements.DetailCpuProgressBar.className = "progress-bar bg-danger";
+        else if (cpuPct > 50) Elements.DetailCpuProgressBar.className = "progress-bar bg-warning";
+        else Elements.DetailCpuProgressBar.className = "progress-bar bg-primary";
+
         const memMb = (stats.MemoryUsageBytes / (1024 * 1024)).toFixed(1);
-        Elements.DetailRamMetric.textContent = `RAM: ${memMb} MB`;
+        Elements.DetailRamMetric.textContent = `${memMb} MB`;
+        const memPct = stats.MemoryLimitBytes ? Math.min(100, (stats.MemoryUsageBytes / stats.MemoryLimitBytes) * 100) : 20;
+        Elements.DetailRamProgressBar.style.width = `${memPct}%`;
       }
     } catch {}
   };
@@ -1058,9 +1137,13 @@ function RenderServerFilesTable(files) {
         <div class="d-inline-flex align-items-center gap-1">
           ${
             !item.IsDirectory
-              ? `<button class="btn btn-ghost py-1 px-2" data-action="edit-file" data-path="${EscapeHtml(relativePath)}" title="Edit File"><i class="bi bi-pencil"></i></button>`
+              ? `
+                <button class="btn btn-ghost py-1 px-2" data-action="edit-file" data-path="${EscapeHtml(relativePath)}" title="Edit File"><i class="bi bi-pencil"></i></button>
+                <a href="/api/servers/${ActiveDetailServerId}/files/download?FilePath=${encodeURIComponent(relativePath)}" class="btn btn-ghost py-1 px-2" title="Download File"><i class="bi bi-download"></i></a>
+              `
               : ""
           }
+          <button class="btn btn-ghost py-1 px-2" data-action="rename" data-path="${EscapeHtml(relativePath)}" data-name="${EscapeHtml(item.Name)}" title="Rename"><i class="bi bi-input-cursor-text"></i></button>
           <button class="btn btn-ghost-danger py-1 px-2" data-action="delete-file" data-path="${EscapeHtml(relativePath)}" title="Delete"><i class="bi bi-trash"></i></button>
         </div>
       </td>
@@ -1091,6 +1174,8 @@ function RenderServerFilesTable(files) {
 
       if (action === "edit-file") {
         OpenFileEditor(ActiveDetailServerId, filePath);
+      } else if (action === "rename") {
+        OpenRenameModal(filePath, btn.dataset.name);
       } else if (action === "delete-file") {
         if (confirm(`Delete '${filePath}'?`)) {
           await DeleteServerFile(ActiveDetailServerId, filePath);
@@ -1192,6 +1277,211 @@ async function HandleNewFileSubmit(e) {
   }
 }
 
+function OpenNewFolderModal() {
+  Elements.NewFolderForm.reset();
+  const modal = GetBootstrapModal(Elements.NewFolderModal);
+  if (modal) modal.show();
+}
+
+async function HandleNewFolderSubmit(e) {
+  e.preventDefault();
+  const rawName = Elements.NewFolderNameInput.value.trim();
+  const targetPath = ActiveDetailSubPath ? `${ActiveDetailSubPath}/${rawName}` : rawName;
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/files/mkdir`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Path: targetPath }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      const modal = GetBootstrapModal(Elements.NewFolderModal);
+      if (modal) modal.hide();
+      FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+    } else {
+      alert("Failed to create directory: " + json.Error);
+    }
+  } catch {
+    alert("Network error creating directory");
+  }
+}
+
+function OpenRenameModal(oldPath, oldName) {
+  Elements.RenameOldPathInput.value = oldPath;
+  Elements.RenameNewNameInput.value = oldName;
+  const modal = GetBootstrapModal(Elements.RenameModal);
+  if (modal) modal.show();
+}
+
+async function HandleRenameSubmit(e) {
+  e.preventDefault();
+  const oldPath = Elements.RenameOldPathInput.value;
+  const newName = Elements.RenameNewNameInput.value.trim();
+
+  const parts = oldPath.split("/");
+  parts.pop();
+  const newPath = parts.length > 0 ? `${parts.join("/")}/${newName}` : newName;
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/files/rename`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ OldPath: oldPath, NewPath: newPath }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      const modal = GetBootstrapModal(Elements.RenameModal);
+      if (modal) modal.hide();
+      FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+    } else {
+      alert("Failed to rename: " + json.Error);
+    }
+  } catch {
+    alert("Network error renaming item");
+  }
+}
+
+async function HandleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64Content = reader.result.split(",")[1];
+    const targetPath = ActiveDetailSubPath ? `${ActiveDetailSubPath}/${file.name}` : file.name;
+
+    try {
+      const res = await fetch(`/api/servers/${ActiveDetailServerId}/files/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          FilePath: targetPath,
+          ContentBase64: base64Content,
+        }),
+      });
+      const json = await res.json();
+      if (json.Success) {
+        FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+      } else {
+        alert("Upload failed: " + json.Error);
+      }
+    } catch {
+      alert("Network error uploading file");
+    } finally {
+      Elements.DetailFilesHiddenInput.value = "";
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function FetchServerBackups(serverId) {
+  try {
+    const res = await fetch(`/api/servers/${serverId}/backups`);
+    const json = await res.json();
+    if (json.Success) {
+      RenderServerBackupsTable(json.Data);
+    }
+  } catch {
+    Elements.DetailBackupsTableBody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger">Failed to load backups.</td></tr>`;
+  }
+}
+
+function RenderServerBackupsTable(backups) {
+  Elements.DetailBackupsCountBadge.textContent = `${backups.length} snapshots`;
+
+  if (backups.length === 0) {
+    Elements.DetailBackupsTableBody.innerHTML = `<tr><td colspan="5" class="text-center py-5 text-body-secondary"><i class="bi bi-archive fs-2 d-block mb-2 text-secondary"></i>No backups generated yet. Create a snapshot to protect your data.</td></tr>`;
+    return;
+  }
+
+  Elements.DetailBackupsTableBody.innerHTML = "";
+  for (const b of backups) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="ps-3 py-2 fw-medium text-body">${EscapeHtml(b.Name)}</td>
+      <td class="font-monospace small text-body-secondary py-2">${EscapeHtml(b.FileName)}</td>
+      <td class="font-monospace small py-2">${FormatBytes(b.SizeBytes)}</td>
+      <td class="font-monospace small text-body-secondary py-2">${EscapeHtml(b.CreatedAt.slice(0, 19).replace("T", " "))}</td>
+      <td class="text-end pe-3 py-2">
+        <div class="d-inline-flex align-items-center gap-1">
+          <a href="/api/servers/${ActiveDetailServerId}/backups/${encodeURIComponent(b.FileName)}/download" class="btn btn-ghost py-1 px-2" title="Download Snapshot"><i class="bi bi-download"></i></a>
+          <button class="btn btn-ghost-warning py-1 px-2" data-action="restore-backup" data-filename="${EscapeHtml(b.FileName)}" title="Restore Snapshot"><i class="bi bi-arrow-counterclockwise"></i></button>
+          <button class="btn btn-ghost-danger py-1 px-2" data-action="delete-backup" data-filename="${EscapeHtml(b.FileName)}" title="Delete Snapshot"><i class="bi bi-trash"></i></button>
+        </div>
+      </td>
+    `;
+    Elements.DetailBackupsTableBody.appendChild(tr);
+  }
+
+  const actionButtons = Elements.DetailBackupsTableBody.querySelectorAll("button[data-action]");
+  for (const btn of actionButtons) {
+    btn.addEventListener("click", async () => {
+      const action = btn.dataset.action;
+      const fileName = btn.dataset.filename;
+
+      if (action === "restore-backup") {
+        if (confirm(`Restore '${fileName}'? Current volume data will be overwritten.`)) {
+          btn.disabled = true;
+          try {
+            await fetch(`/api/servers/${ActiveDetailServerId}/backups/${encodeURIComponent(fileName)}/restore`, { method: "POST" });
+            alert("Backup restored successfully!");
+            FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+          } catch {
+            alert("Failed to restore backup");
+          }
+          btn.disabled = false;
+        }
+      } else if (action === "delete-backup") {
+        if (confirm(`Delete backup '${fileName}'?`)) {
+          btn.disabled = true;
+          try {
+            await fetch(`/api/servers/${ActiveDetailServerId}/backups/${encodeURIComponent(fileName)}`, { method: "DELETE" });
+            FetchServerBackups(ActiveDetailServerId);
+          } catch {
+            alert("Failed to delete backup");
+          }
+        }
+      }
+    });
+  }
+}
+
+function OpenCreateBackupModal() {
+  Elements.CreateBackupForm.reset();
+  const modal = GetBootstrapModal(Elements.CreateBackupModal);
+  if (modal) modal.show();
+}
+
+async function HandleCreateBackupSubmit(e) {
+  e.preventDefault();
+  const name = Elements.BackupNameInput.value.trim();
+
+  Elements.CreateBackupSubmitBtn.disabled = true;
+  Elements.CreateBackupSubmitBtn.innerHTML = `<i class="bi bi-arrow-repeat me-1"></i> Archiving...`;
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/backups`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Name: name }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      const modal = GetBootstrapModal(Elements.CreateBackupModal);
+      if (modal) modal.hide();
+      FetchServerBackups(ActiveDetailServerId);
+    } else {
+      alert("Backup creation failed: " + json.Error);
+    }
+  } catch {
+    alert("Network error creating backup");
+  } finally {
+    Elements.CreateBackupSubmitBtn.disabled = false;
+    Elements.CreateBackupSubmitBtn.innerHTML = `<i class="bi bi-box-arrow-down me-1"></i> Create Snapshot`;
+  }
+}
+
 function RenderServerConfigTab() {
   const server = Servers.find((s) => s.Id === ActiveDetailServerId);
   if (!server) return;
@@ -1204,6 +1494,12 @@ function RenderServerConfigTab() {
   }
 
   Elements.DetailAutoRestartSwitch.checked = server.AutoRestart !== false;
+
+  const memLimit = server.Limits?.Memory || 0;
+  Elements.DetailMemoryLimitSelect.value = String(memLimit);
+
+  const cpuLimit = server.Limits?.CpuShares || 0;
+  Elements.DetailCpuSharesSelect.value = String(cpuLimit);
 
   Elements.DetailPortsContainer.innerHTML = "";
   if (server.Ports && server.Ports.length > 0) {
@@ -1219,6 +1515,87 @@ function RenderServerConfigTab() {
     }
   } else {
     Elements.DetailPortsContainer.innerHTML = `<span class="small text-body-secondary">No exposed ports configured.</span>`;
+  }
+}
+
+function RenderServerNetworkingTab() {
+  const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+  if (!server) return;
+
+  const defaultSubdomain = `${server.Name.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}.example.com`;
+  if (!Elements.DetailSubdomainInput.value) {
+    Elements.DetailSubdomainInput.value = defaultSubdomain;
+  }
+
+  UpdateCaddySnippet();
+
+  const portsText =
+    server.Ports && server.Ports.length > 0
+      ? server.Ports.map((p) => `${p.HostPort} -> ${p.ContainerPort}/${p.Protocol}`).join("<br>")
+      : "None";
+
+  Elements.DetailNetworkInfoContainer.innerHTML = `
+    <div class="mb-3">
+      <span class="text-body-secondary small d-block mb-1">Bridge Gateway</span>
+      <span class="font-monospace small">172.17.0.1</span>
+    </div>
+    <div class="mb-3">
+      <span class="text-body-secondary small d-block mb-1">Forwarded Host Ports</span>
+      <span class="font-monospace small">${portsText}</span>
+    </div>
+    <div class="mb-2">
+      <span class="text-body-secondary small d-block mb-1">Caddy Direct Proxy Target</span>
+      <span class="font-monospace small text-primary">127.0.0.1:${server.Ports?.[0]?.HostPort || "3000"}</span>
+    </div>
+  `;
+}
+
+function UpdateCaddySnippet() {
+  const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+  const domain = Elements.DetailSubdomainInput.value.trim() || "subdomain.yourdomain.com";
+  const port = server?.Ports?.[0]?.HostPort || 3000;
+
+  Elements.DetailCaddySnippetPre.textContent = `${domain} {
+    reverse_proxy 127.0.0.1:${port}
+    encode gzip
+}`;
+}
+
+async function FetchServerAuditLogs(serverId) {
+  try {
+    const res = await fetch(`/api/servers/${serverId}/audit`);
+    const json = await res.json();
+    if (json.Success) {
+      RenderServerAuditLogsTable(json.Data);
+    }
+  } catch {
+    Elements.DetailAuditTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-danger">Failed to load audit trail.</td></tr>`;
+  }
+}
+
+function RenderServerAuditLogsTable(logs) {
+  if (logs.length === 0) {
+    Elements.DetailAuditTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-body-secondary">No audit logs recorded for this server yet.</td></tr>`;
+    return;
+  }
+
+  Elements.DetailAuditTableBody.innerHTML = "";
+  for (const log of logs) {
+    const tr = document.createElement("tr");
+
+    let actionBadgeClass = "text-bg-secondary";
+    if (log.Action.includes("START")) actionBadgeClass = "text-bg-success";
+    else if (log.Action.includes("STOP") || log.Action.includes("KILL")) actionBadgeClass = "text-bg-warning text-dark";
+    else if (log.Action.includes("DELETE")) actionBadgeClass = "text-bg-danger";
+    else if (log.Action.includes("CONFIG")) actionBadgeClass = "text-bg-info text-dark";
+
+    tr.innerHTML = `
+      <td class="ps-3 py-2"><span class="badge ${actionBadgeClass} font-monospace">${EscapeHtml(log.Action)}</span></td>
+      <td class="small py-2">${EscapeHtml(log.Details)}</td>
+      <td class="font-monospace small text-body-secondary py-2">${EscapeHtml(log.IpAddress)}</td>
+      <td class="text-end pe-3 font-monospace small text-body-secondary py-2">${EscapeHtml(log.Timestamp.slice(0, 19).replace("T", " "))}</td>
+    `;
+    Elements.DetailAuditTableBody.appendChild(tr);
   }
 }
 
@@ -1251,6 +1628,8 @@ async function HandleSaveServerConfig() {
   }
 
   const autoRestart = Elements.DetailAutoRestartSwitch.checked;
+  const memLimit = Number(Elements.DetailMemoryLimitSelect.value) || 0;
+  const cpuLimit = Number(Elements.DetailCpuSharesSelect.value) || 0;
 
   try {
     const res = await fetch(`/api/servers/${ActiveDetailServerId}/config`, {
@@ -1259,6 +1638,10 @@ async function HandleSaveServerConfig() {
       body: JSON.stringify({
         EnvironmentVariables: env,
         AutoRestart: autoRestart,
+        Limits: {
+          Memory: memLimit,
+          CpuShares: cpuLimit,
+        },
       }),
     });
     const json = await res.json();
@@ -1266,7 +1649,7 @@ async function HandleSaveServerConfig() {
       Elements.DetailSaveConfigBtn.innerHTML = `<i class="bi bi-check2 me-1"></i> Saved!`;
       await FetchSingleServer(ActiveDetailServerId);
       setTimeout(() => {
-        Elements.DetailSaveConfigBtn.innerHTML = `<i class="bi bi-check2 me-1"></i> Save Configuration`;
+        Elements.DetailSaveConfigBtn.innerHTML = `<i class="bi bi-check2 me-1"></i> Save Configuration & Limits`;
         Elements.DetailSaveConfigBtn.disabled = false;
       }, 1500);
     } else {
@@ -1560,5 +1943,7 @@ if (typeof window !== "undefined") {
     SwitchDetailTab,
     FetchServers,
     FetchUsers,
+    FetchServerBackups,
+    FetchServerAuditLogs,
   };
 }

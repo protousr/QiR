@@ -3,6 +3,9 @@ import { MinecraftTemplate } from "../../Templates/MinecraftTemplate.js";
 import { DiscordBotTemplate } from "../../Templates/DiscordBotTemplate.js";
 import { GenericNodeTemplate } from "../../Templates/GenericNodeTemplate.js";
 import { GenericPythonTemplate } from "../../Templates/GenericPythonTemplate.js";
+import { PostgreSqlTemplate } from "../../Templates/PostgreSqlTemplate.js";
+import { RedisTemplate } from "../../Templates/RedisTemplate.js";
+import { NginxStaticTemplate } from "../../Templates/NginxStaticTemplate.js";
 
 export class TemplateService {
   private static Instance: TemplateService;
@@ -24,6 +27,9 @@ export class TemplateService {
     this.RegisterTemplate(new DiscordBotTemplate());
     this.RegisterTemplate(new GenericNodeTemplate());
     this.RegisterTemplate(new GenericPythonTemplate());
+    this.RegisterTemplate(new PostgreSqlTemplate());
+    this.RegisterTemplate(new RedisTemplate());
+    this.RegisterTemplate(new NginxStaticTemplate());
   }
 
   public RegisterTemplate(template: ITemplate): void {

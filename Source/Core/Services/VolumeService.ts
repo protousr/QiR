@@ -99,4 +99,35 @@ export class VolumeService {
     const filePath = path.resolve(this.GetServerVolumePath(serverId), relativeFilePath);
     await fs.rm(filePath, { recursive: true, force: true });
   }
+
+  public async CreateDirectory(serverId: string, relativeSubPath: string): Promise<void> {
+    const dirPath = path.resolve(this.GetServerVolumePath(serverId), relativeSubPath);
+    await fs.mkdir(dirPath, { recursive: true });
+  }
+
+  public async Rename(
+    serverId: string,
+    oldRelativePath: string,
+    newRelativePath: string
+  ): Promise<void> {
+    const oldPath = path.resolve(this.GetServerVolumePath(serverId), oldRelativePath);
+    const newPath = path.resolve(this.GetServerVolumePath(serverId), newRelativePath);
+    await fs.mkdir(path.dirname(newPath), { recursive: true });
+    await fs.rename(oldPath, newPath);
+  }
+
+  public async GetFileBuffer(serverId: string, relativeFilePath: string): Promise<Buffer> {
+    const filePath = path.resolve(this.GetServerVolumePath(serverId), relativeFilePath);
+    return await fs.readFile(filePath);
+  }
+
+  public async WriteFileBuffer(
+    serverId: string,
+    relativeFilePath: string,
+    buffer: Buffer
+  ): Promise<void> {
+    const filePath = path.resolve(this.GetServerVolumePath(serverId), relativeFilePath);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, buffer);
+  }
 }

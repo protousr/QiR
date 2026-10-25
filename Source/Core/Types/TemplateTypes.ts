@@ -1,6 +1,6 @@
 import type { IPortMapping, IVolumeMapping, IResourceLimits, ICreateServerInput } from "./ServerTypes.js";
 
-export type TemplateCategory = "GameServer" | "Bot" | "Runtime" | "Custom";
+export type TemplateCategory = "GameServer" | "Bot" | "Runtime" | "Database" | "Web" | "Custom";
 
 export interface ITemplateField {
   Key: string;

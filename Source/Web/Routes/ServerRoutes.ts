@@ -40,4 +40,38 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
     Params: { Id: string };
     Body: { FilePath: string; Content: string };
   }>("/servers/:Id/files/content", controller.WriteVolumeFile);
+  fastify.get<{ Params: { Id: string }; Querystring: { FilePath: string } }>(
+    "/servers/:Id/files/download",
+    controller.DownloadVolumeFile
+  );
+  fastify.post<{
+    Params: { Id: string };
+    Body: { FilePath: string; ContentBase64: string };
+  }>("/servers/:Id/files/upload", controller.UploadVolumeFile);
+  fastify.post<{
+    Params: { Id: string };
+    Body: { Path: string };
+  }>("/servers/:Id/files/mkdir", controller.CreateVolumeDirectory);
+  fastify.post<{
+    Params: { Id: string };
+    Body: { OldPath: string; NewPath: string };
+  }>("/servers/:Id/files/rename", controller.RenameVolumeFile);
+  fastify.get<{ Params: { Id: string } }>("/servers/:Id/backups", controller.ListBackups);
+  fastify.post<{ Params: { Id: string }; Body?: { Name?: string } }>(
+    "/servers/:Id/backups",
+    controller.CreateBackup
+  );
+  fastify.post<{ Params: { Id: string; FileName: string } }>(
+    "/servers/:Id/backups/:FileName/restore",
+    controller.RestoreBackup
+  );
+  fastify.delete<{ Params: { Id: string; FileName: string } }>(
+    "/servers/:Id/backups/:FileName",
+    controller.DeleteBackup
+  );
+  fastify.get<{ Params: { Id: string; FileName: string } }>(
+    "/servers/:Id/backups/:FileName/download",
+    controller.DownloadBackup
+  );
+  fastify.get<{ Params: { Id: string } }>("/servers/:Id/audit", controller.GetServerAuditLogs);
 }
