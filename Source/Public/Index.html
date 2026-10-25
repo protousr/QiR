@@ -372,6 +372,10 @@
                 </div>
               </div>
               <div class="d-flex align-items-center gap-2">
+                <span class="font-monospace small" id="DbConnectionTestResult"></span>
+                <button class="btn btn-xs btn-outline-info" id="DbConnectionTestBtn" title="Test Live Database Ping">
+                  <i class="bi bi-activity me-1"></i> Test Ping
+                </button>
                 <button class="btn btn-xs btn-outline-secondary" id="DbToggleMaskBtn" title="Show/Hide Password">
                   <i class="bi bi-eye"></i> Show
                 </button>
@@ -465,6 +469,10 @@
                       <div class="progress-bar bg-info" id="DetailRamProgressBar" style="width: 0%;"></div>
                     </div>
                     <span class="text-body-secondary" id="DetailRamMetric">0 MB</span>
+                  </div>
+                  <div class="d-flex align-items-center gap-1">
+                    <span class="text-body-secondary small"><i class="bi bi-arrow-down-up text-primary me-1"></i>NET:</span>
+                    <span class="text-body-secondary font-monospace small" id="DetailNetMetric">0 MB</span>
                   </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
@@ -784,6 +792,14 @@
                   <button class="btn btn-xs btn-outline-secondary" id="EnvExportDotEnvBtn">
                     <i class="bi bi-box-arrow-down me-1"></i> Export .env
                   </button>
+                  <div class="d-none d-md-flex align-items-center gap-1">
+                    <select class="form-select form-select-sm py-0 px-2 font-monospace small" id="EnvCloneSourceSelect" style="max-width: 170px;">
+                      <option value="">Clone from...</option>
+                    </select>
+                    <button class="btn btn-xs btn-outline-secondary" id="EnvCloneApplyBtn" title="Clone variables from another server">
+                      <i class="bi bi-copy"></i>
+                    </button>
+                  </div>
                   <button class="btn btn-xs btn-outline-primary" id="EnvAddRowBtn">
                     <i class="bi bi-plus-lg me-1"></i> Add Variable
                   </button>
@@ -969,6 +985,23 @@
               </div>
               <div class="card-body p-0">
                 <pre class="m-0 p-3 font-monospace small" id="DetailDockerInspectPre" style="max-height: 380px; overflow-y: auto; background-color: #07080a; color: #a5b4fc;"></pre>
+              </div>
+            </div>
+
+            <div class="card TableCard shadow-sm mb-3">
+              <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2">
+                <span class="fw-medium small"><i class="bi bi-file-earmark-code me-1 text-primary"></i> Standalone Docker Compose Specification (docker-compose.yml)</span>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-sm btn-outline-secondary" id="DetailCopyComposeBtn">
+                    <i class="bi bi-clipboard me-1"></i> Copy YAML
+                  </button>
+                  <button class="btn btn-sm btn-outline-primary" id="DetailDownloadComposeBtn">
+                    <i class="bi bi-download me-1"></i> Download compose.yml
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <pre class="m-0 p-3 font-monospace small" id="DetailDockerComposePre" style="max-height: 280px; overflow-y: auto; background-color: #07080a; color: #34d399;"></pre>
               </div>
             </div>
           </div>

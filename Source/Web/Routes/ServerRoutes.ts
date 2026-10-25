@@ -138,4 +138,5 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
     "/servers/:Id/ports/probe",
     controller.ProbeServerPort
   );
+  fastify.get<{ Params: { Id: string } }>("/servers/:Id/compose", controller.GetDockerCompose);
 }

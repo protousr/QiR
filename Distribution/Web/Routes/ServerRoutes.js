@@ -54,4 +54,5 @@ export async function ServerRoutes(fastify) {
     fastify.post("/servers/:Id/pause", controller.PauseServer);
     fastify.post("/servers/:Id/unpause", controller.UnpauseServer);
     fastify.post("/servers/:Id/ports/probe", controller.ProbeServerPort);
+    fastify.get("/servers/:Id/compose", controller.GetDockerCompose);
 }

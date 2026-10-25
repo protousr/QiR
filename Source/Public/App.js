@@ -320,6 +320,14 @@ const Elements = {
   DetailMemorySliderBadge: document.getElementById("DetailMemorySliderBadge"),
   DetailCpuSlider: document.getElementById("DetailCpuSlider"),
   DetailCpuSliderBadge: document.getElementById("DetailCpuSliderBadge"),
+  DbConnectionTestBtn: document.getElementById("DbConnectionTestBtn"),
+  DbConnectionTestResult: document.getElementById("DbConnectionTestResult"),
+  DetailNetMetric: document.getElementById("DetailNetMetric"),
+  EnvCloneSourceSelect: document.getElementById("EnvCloneSourceSelect"),
+  EnvCloneApplyBtn: document.getElementById("EnvCloneApplyBtn"),
+  DetailCopyComposeBtn: document.getElementById("DetailCopyComposeBtn"),
+  DetailDownloadComposeBtn: document.getElementById("DetailDownloadComposeBtn"),
+  DetailDockerComposePre: document.getElementById("DetailDockerComposePre"),
 };
 
 function GetBootstrapModal(element) {
@@ -687,6 +695,7 @@ function SwitchDetailTab(tabName) {
   } else if (tabName === "Docker") {
     FetchServerInspect(ActiveDetailServerId);
     FetchServerProcesses(ActiveDetailServerId);
+    FetchServerDockerCompose(ActiveDetailServerId);
   } else if (tabName === "Config") {
     RenderServerConfigTab();
   } else if (tabName === "Networking") {
@@ -697,6 +706,7 @@ function SwitchDetailTab(tabName) {
     FetchServerAuditLogs(ActiveDetailServerId);
   } else if (tabName === "Environment") {
     RenderServerEnvironmentTab();
+    PopulateEnvCloneDropdown();
   }
 }
 
@@ -1547,6 +1557,12 @@ function ConnectWebSockets(serverId) {
         if (Elements.ChartCpuLabel) Elements.ChartCpuLabel.textContent = `${cpuPct.toFixed(1)}%`;
         if (Elements.ChartRamLabel) Elements.ChartRamLabel.textContent = `${memPct.toFixed(1)}% (${memMb} MB)`;
         DrawResourceChart();
+
+        if (Elements.DetailNetMetric) {
+          const rxMb = ((stats.NetworkInputBytes || 0) / (1024 * 1024)).toFixed(2);
+          const txMb = ((stats.NetworkOutputBytes || 0) / (1024 * 1024)).toFixed(2);
+          Elements.DetailNetMetric.textContent = `⬇ ${rxMb}M / ⬆ ${txMb}M`;
+        }
 
       }
     } catch {}
@@ -3617,6 +3633,54 @@ function SetupExtraServerFeatures() {
     });
   }
 
+  if (Elements.DbConnectionTestBtn) {
+    Elements.DbConnectionTestBtn.addEventListener("click", HandleDbConnectionTest);
+  }
+  if (Elements.DetailCopyComposeBtn) {
+    Elements.DetailCopyComposeBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(Elements.DetailDockerComposePre.textContent);
+      ShowToast("docker-compose.yml copied to clipboard", "success");
+    });
+  }
+  if (Elements.DetailDownloadComposeBtn) {
+    Elements.DetailDownloadComposeBtn.addEventListener("click", () => {
+      const yaml = Elements.DetailDockerComposePre.textContent;
+      const blob = new Blob([yaml], { type: "text/yaml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "docker-compose.yml";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      ShowToast("docker-compose.yml downloaded", "success");
+    });
+  }
+  if (Elements.EnvCloneApplyBtn) {
+    Elements.EnvCloneApplyBtn.addEventListener("click", () => {
+      const sourceId = Elements.EnvCloneSourceSelect?.value;
+      if (!sourceId) {
+        ShowToast("Select a source server to clone variables from", "warning");
+        return;
+      }
+      const source = Servers.find((s) => s.Id === sourceId);
+      if (!source || !source.EnvironmentVariables) {
+        ShowToast("No environment variables found on source server", "warning");
+        return;
+      }
+      const entries = Object.entries(source.EnvironmentVariables);
+      if (entries.length === 0) {
+        ShowToast("Selected server has no environment variables", "info");
+        return;
+      }
+      for (const [k, v] of entries) {
+        AddEnvRow(k, v);
+      }
+      ShowToast(`Cloned ${entries.length} environment variables from ${source.Name}`, "success");
+    });
+  }
+
   if (Elements.FileEditorWrapBtn) {
     Elements.FileEditorWrapBtn.addEventListener("click", () => {
       Elements.FileEditorTextarea.classList.toggle("wrap-active");
@@ -4057,5 +4121,82 @@ function UpdateCpuSliderLabel(shares) {
     Elements.DetailCpuSliderBadge.textContent = "Unlimited";
   } else {
     Elements.DetailCpuSliderBadge.textContent = (num / 100).toFixed(1) + " Cores";
+  }
+}
+
+async function FetchServerDockerCompose(serverId) {
+  if (!Elements.DetailDockerComposePre) return;
+  Elements.DetailDockerComposePre.textContent = "# Generating standalone docker-compose.yml...";
+  try {
+    const res = await fetch(`/api/servers/${serverId}/compose`);
+    const json = await res.json();
+    if (json.Success && json.Data?.ComposeYaml) {
+      Elements.DetailDockerComposePre.textContent = json.Data.ComposeYaml;
+    } else {
+      Elements.DetailDockerComposePre.textContent = "# Failed to generate compose file: " + (json.Error || "Unknown error");
+    }
+  } catch {
+    Elements.DetailDockerComposePre.textContent = "# Error connecting to server to generate docker-compose.yml";
+  }
+}
+
+function PopulateEnvCloneDropdown() {
+  if (!Elements.EnvCloneSourceSelect) return;
+  Elements.EnvCloneSourceSelect.innerHTML = '<option value="">Clone from...</option>';
+  for (const s of Servers) {
+    if (s.Id !== ActiveDetailServerId) {
+      const opt = document.createElement("option");
+      opt.value = s.Id;
+      opt.textContent = s.Name;
+      Elements.EnvCloneSourceSelect.appendChild(opt);
+    }
+  }
+}
+
+async function HandleDbConnectionTest() {
+  const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+  if (!server) return;
+  if (!Elements.DbConnectionTestResult) return;
+
+  Elements.DbConnectionTestBtn.disabled = true;
+  Elements.DbConnectionTestResult.innerHTML = `<span class="badge text-bg-secondary"><i class="bi bi-hourglass-split me-1"></i>Testing...</span>`;
+
+  let testCmd = "echo PING";
+  if (server.TemplateId.includes("redis")) {
+    const pwd = server.EnvironmentVariables?.REDIS_PASSWORD || "";
+    testCmd = pwd ? `redis-cli -a "${pwd}" ping` : "redis-cli ping";
+  } else if (server.TemplateId.includes("postgresql")) {
+    const user = server.EnvironmentVariables?.POSTGRES_USER || "postgres";
+    testCmd = `pg_isready -U ${user} || echo READY`;
+  } else if (server.TemplateId.includes("mariadb")) {
+    const pwd = server.EnvironmentVariables?.MYSQL_ROOT_PASSWORD || "";
+    testCmd = pwd ? `mariadb-admin -uroot -p"${pwd}" ping` : "mariadb-admin -uroot ping";
+  } else if (server.TemplateId.includes("mongo")) {
+    testCmd = `mongosh --eval "db.adminCommand({ ping: 1 })" || echo OK`;
+  }
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/exec`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Command: testCmd }),
+    });
+    const json = await res.json();
+    if (json.Success && json.Data) {
+      const out = (json.Data.Output || "").trim();
+      const isOk = out.includes("PONG") || out.includes("alive") || out.includes("accepting connections") || out.includes("ok: 1") || out.includes("READY") || out.includes("OK") || json.Data.ExitCode === 0;
+      if (isOk) {
+        const lastLine = out.split("\n").pop().trim().slice(0, 16);
+        Elements.DbConnectionTestResult.innerHTML = `<span class="badge text-bg-success"><i class="bi bi-check-circle-fill me-1"></i>Online (${lastLine || "OK"})</span>`;
+      } else {
+        Elements.DbConnectionTestResult.innerHTML = `<span class="badge text-bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Resp: ${out.slice(0, 15)}</span>`;
+      }
+    } else {
+      Elements.DbConnectionTestResult.innerHTML = `<span class="badge text-bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Refused</span>`;
+    }
+  } catch {
+    Elements.DbConnectionTestResult.innerHTML = `<span class="badge text-bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Network Error</span>`;
+  } finally {
+    Elements.DbConnectionTestBtn.disabled = false;
   }
 }

@@ -645,4 +645,16 @@ export class ServerController {
             });
         }
     };
+    GetDockerCompose = async (request, reply) => {
+        try {
+            const yaml = this.ServerService.GenerateDockerCompose(request.params.Id);
+            reply.send({ Success: true, Data: { ComposeYaml: yaml } });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to generate docker compose",
+            });
+        }
+    };
 }

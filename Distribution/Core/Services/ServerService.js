@@ -762,4 +762,46 @@ export class ServerService {
             socket.connect(port, host);
         });
     }
+    GenerateDockerCompose(serverId) {
+        const server = this.Servers.get(serverId);
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
+        }
+        const serviceName = server.Name.toLowerCase().replace(/[^a-z0-9_-]/g, "-") || "app";
+        const lines = [
+            'version: "3.8"',
+            "",
+            "services:",
+            `  ${serviceName}:`,
+            `    image: ${server.Image || "alpine:latest"}`,
+            `    container_name: ${server.Name}`,
+            `    restart: ${server.RestartPolicy || (server.AutoRestart ? "unless-stopped" : "no")}`,
+        ];
+        if (server.Ports && server.Ports.length > 0) {
+            lines.push("    ports:");
+            for (const p of server.Ports) {
+                lines.push(`      - "${p.HostPort}:${p.ContainerPort}${p.Protocol === "udp" ? "/udp" : ""}"`);
+            }
+        }
+        if (server.EnvironmentVariables && Object.keys(server.EnvironmentVariables).length > 0) {
+            lines.push("    environment:");
+            for (const [k, v] of Object.entries(server.EnvironmentVariables)) {
+                lines.push(`      - ${k}=${v}`);
+            }
+        }
+        lines.push("    volumes:");
+        lines.push(`      - ./${server.Name}_data:/app/data`);
+        if (server.Limits && (server.Limits.MemoryBytes || server.Limits.CpuShares)) {
+            lines.push("    deploy:");
+            lines.push("      resources:");
+            lines.push("        limits:");
+            if (server.Limits.MemoryBytes) {
+                lines.push(`          memory: ${Math.round(server.Limits.MemoryBytes / (1024 * 1024))}M`);
+            }
+            if (server.Limits.CpuShares) {
+                lines.push(`          cpus: "${(server.Limits.CpuShares / 100).toFixed(1)}"`);
+            }
+        }
+        return lines.join("\n") + "\n";
+    }
 }

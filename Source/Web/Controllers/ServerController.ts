@@ -915,4 +915,19 @@ export class ServerController {
       });
     }
   };
+
+  public GetDockerCompose = async (
+    request: FastifyRequest<{ Params: { Id: string } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const yaml = this.ServerService.GenerateDockerCompose(request.params.Id);
+      reply.send({ Success: true, Data: { ComposeYaml: yaml } });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to generate docker compose",
+      });
+    }
+  };
 }
