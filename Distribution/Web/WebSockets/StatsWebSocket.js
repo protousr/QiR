@@ -1,0 +1,46 @@
+import { ServerService } from "../../Core/Services/ServerService.js";
+import { AuthService } from "../../Core/Services/AuthService.js";
+export async function StatsWebSocketRoute(fastify) {
+    const serverService = ServerService.GetInstance();
+    const authService = AuthService.GetInstance();
+    fastify.get("/ws/servers/:Id/stats", { websocket: true }, async (socket, request) => {
+        const token = request.cookies?.["qir_session"] || request.query?.token;
+        const user = token ? authService.ValidateSession(token) : null;
+        if (!user) {
+            if (socket.readyState === socket.OPEN) {
+                socket.send(JSON.stringify({
+                    Type: "Error",
+                    Data: "Authentication required for stats stream.",
+                }));
+            }
+            socket.close(1008, "Unauthorized");
+            return;
+        }
+        const serverId = request.params.Id;
+        try {
+            const cleanupStats = await serverService.StreamStats(serverId, (stats) => {
+                if (socket.readyState === socket.OPEN) {
+                    socket.send(JSON.stringify({
+                        Type: "Stats",
+                        Data: stats,
+                    }));
+                }
+            });
+            socket.on("close", () => {
+                cleanupStats();
+            });
+            socket.on("error", () => {
+                cleanupStats();
+            });
+        }
+        catch (err) {
+            if (socket.readyState === socket.OPEN) {
+                socket.send(JSON.stringify({
+                    Type: "Error",
+                    Data: err instanceof Error ? err.message : "Failed to attach stats monitor",
+                }));
+                socket.close();
+            }
+        }
+    });
+}

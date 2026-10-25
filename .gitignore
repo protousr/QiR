@@ -1,9 +1,4 @@
 node_modules
-Distribution
-Data/
-.env
-
 *.db
 *.db-wal
 *.db-shm
-*.key

@@ -1,0 +1,54 @@
+[
+  {
+    "Id": "ca209832-7a42-4c8d-a27b-46486028898d",
+    "Name": "test",
+    "TemplateId": "generic-node",
+    "ContainerId": "1411a2b97d19a2571f06607bfc600123683a422ab1d5ed444d83cdae101025a1",
+    "Status": "Running",
+    "CreatedAt": "2026-10-25T10:26:58.227Z",
+    "Ports": [
+      {
+        "HostPort": 3000,
+        "ContainerPort": 3000,
+        "Protocol": "tcp"
+      }
+    ],
+    "EnvironmentVariables": {
+      "NODE_ENV": "production",
+      "STARTUP_CMD": "npm start"
+    },
+    "Limits": {},
+    "AutoRestart": true,
+    "WebhookToken": "bf06c68842a4e028b290438aea3fb13a7360ceb892b7e00f"
+  },
+  {
+    "Id": "ddf479ea-2689-4e30-923c-3c4afb0bc7ce",
+    "Name": "node-production-api",
+    "TemplateId": "generic-node",
+    "ContainerId": "e4ff979ef70a56d73667bc4a19d194f1de63261eb39a657f804af7b84c79b0ac",
+    "Status": "Stopped",
+    "CreatedAt": "2026-10-25T10:47:04.053Z",
+    "Ports": [
+      {
+        "HostPort": 3000,
+        "ContainerPort": 3000,
+        "Protocol": "tcp"
+      },
+      {
+        "HostPort": 3001,
+        "ContainerPort": 3001,
+        "Protocol": "tcp"
+      }
+    ],
+    "EnvironmentVariables": {
+      "PORT": "3000",
+      "NODE_ENV": "production",
+      "STARTUP_CMD": "node index.js"
+    },
+    "Limits": {},
+    "AutoRestart": true,
+    "OwnerId": "d0173f3b-eb8e-4981-b3ac-8c447ba0ea58",
+    "OwnerUsername": "admin",
+    "WebhookToken": "aaaffbf37ff687d0a07683564d45e4dce105387223274b97"
+  }
+]
