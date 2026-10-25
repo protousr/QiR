@@ -87,6 +87,16 @@ export class ServerService {
         server.OomKilled = Boolean(inspect.State.OOMKilled);
         server.ExitCode = typeof inspect.State.ExitCode === "number" ? inspect.State.ExitCode : 0;
         server.HealthStatus = (inspect.State.Health?.Status as "healthy" | "unhealthy" | "starting") || "none";
+        if (inspect.State.Health?.Log) {
+          server.HealthLogs = (inspect.State.Health.Log as Array<{ Start?: string; End?: string; ExitCode?: number; Output?: string }>)
+            .slice(-5)
+            .map((l) => ({
+              Start: l.Start || "",
+              End: l.End || "",
+              ExitCode: l.ExitCode ?? 0,
+              Output: l.Output || "",
+            }));
+        }
         if (inspect.HostConfig?.RestartPolicy?.Name) {
           server.RestartPolicy = inspect.HostConfig.RestartPolicy.Name as
             | "unless-stopped"
@@ -147,6 +157,7 @@ export class ServerService {
       WebhookToken: input.WebhookToken || crypto.randomBytes(24).toString("hex"),
       AlertWebhookUrl: input.AlertWebhookUrl?.trim() || undefined,
       CrashCount: 0,
+      Tags: input.Tags || [],
     };
 
     this.Servers.set(serverId, serverInstance);
@@ -751,6 +762,16 @@ export class ServerService {
         const previousStatus = server.Status;
         server.OomKilled = Boolean(inspect.State.OOMKilled);
         server.HealthStatus = (inspect.State.Health?.Status as "healthy" | "unhealthy" | "starting") || "none";
+        if (inspect.State.Health?.Log) {
+          server.HealthLogs = (inspect.State.Health.Log as Array<{ Start?: string; End?: string; ExitCode?: number; Output?: string }>)
+            .slice(-5)
+            .map((l) => ({
+              Start: l.Start || "",
+              End: l.End || "",
+              ExitCode: l.ExitCode ?? 0,
+              Output: l.Output || "",
+            }));
+        }
 
         if (inspect.State.Running) {
           server.Status = "Running";
@@ -994,5 +1015,27 @@ export class ServerService {
     }
 
     return lines.join("\n") + "\n";
+  }
+
+  public async UpdateServerTags(serverId: string, tags: string[]): Promise<IServerInstance> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+    server.Tags = tags.map((t) => t.trim().toLowerCase()).filter(Boolean);
+    await this.SaveServers();
+    return server;
+  }
+
+  public async BatchDeleteFiles(serverId: string, relativePaths: string[]): Promise<number> {
+    const volume = this.VolumeService;
+    let deletedCount = 0;
+    for (const p of relativePaths) {
+      try {
+        await volume.DeleteFile(serverId, p);
+        deletedCount++;
+      } catch {}
+    }
+    return deletedCount;
   }
 }

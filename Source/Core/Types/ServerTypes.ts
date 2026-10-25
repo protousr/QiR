@@ -49,6 +49,8 @@ export interface IServerInstance {
   AlertWebhookUrl?: string;
   CrashCount?: number;
   LastCrashTime?: string;
+  Tags?: string[];
+  HealthLogs?: Array<{ Start: string; End: string; ExitCode: number; Output: string }>;
 }
 
 export interface ICreateServerInput {
@@ -63,6 +65,7 @@ export interface ICreateServerInput {
   OwnerUsername?: string;
   WebhookToken?: string;
   AlertWebhookUrl?: string;
+  Tags?: string[];
 }
 
 export interface IServerStats {

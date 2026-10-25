@@ -930,4 +930,40 @@ export class ServerController {
       });
     }
   };
+
+  public UpdateServerTags = async (
+    request: FastifyRequest<{ Params: { Id: string }; Body: { Tags: string[] } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const { Tags } = request.body || {};
+      const updated = await this.ServerService.UpdateServerTags(request.params.Id, Array.isArray(Tags) ? Tags : []);
+      reply.send({ Success: true, Data: updated, Message: "Server tags updated successfully" });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to update tags",
+      });
+    }
+  };
+
+  public BatchDeleteFiles = async (
+    request: FastifyRequest<{ Params: { Id: string }; Body: { Paths: string[] } }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    try {
+      const { Paths } = request.body || {};
+      if (!Array.isArray(Paths) || Paths.length === 0) {
+        reply.status(400).send({ Success: false, Error: "Paths array is required" });
+        return;
+      }
+      const count = await this.ServerService.BatchDeleteFiles(request.params.Id, Paths);
+      reply.send({ Success: true, Data: { DeletedCount: count }, Message: `Deleted ${count} files successfully` });
+    } catch (err) {
+      reply.status(500).send({
+        Success: false,
+        Error: err instanceof Error ? err.message : "Failed to batch delete files",
+      });
+    }
+  };
 }

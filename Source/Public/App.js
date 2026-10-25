@@ -328,6 +328,16 @@ const Elements = {
   DetailCopyComposeBtn: document.getElementById("DetailCopyComposeBtn"),
   DetailDownloadComposeBtn: document.getElementById("DetailDownloadComposeBtn"),
   DetailDockerComposePre: document.getElementById("DetailDockerComposePre"),
+  FilesBatchBar: document.getElementById("FilesBatchBar"),
+  FilesBatchCountBadge: document.getElementById("FilesBatchCountBadge"),
+  FilesBatchDeleteBtn: document.getElementById("FilesBatchDeleteBtn"),
+  FilesBatchCompressBtn: document.getElementById("FilesBatchCompressBtn"),
+  FilesSelectAllCheckbox: document.getElementById("FilesSelectAllCheckbox"),
+  DetailTagsContainer: document.getElementById("DetailTagsContainer"),
+  DetailTagInput: document.getElementById("DetailTagInput"),
+  DetailAddTagBtn: document.getElementById("DetailAddTagBtn"),
+  DetailHealthcheckStatusBadge: document.getElementById("DetailHealthcheckStatusBadge"),
+  DetailHealthcheckTableBody: document.getElementById("DetailHealthcheckTableBody"),
 };
 
 function GetBootstrapModal(element) {
@@ -696,6 +706,8 @@ function SwitchDetailTab(tabName) {
     FetchServerInspect(ActiveDetailServerId);
     FetchServerProcesses(ActiveDetailServerId);
     FetchServerDockerCompose(ActiveDetailServerId);
+    const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+    if (server) RenderServerHealthcheck(server);
   } else if (tabName === "Config") {
     RenderServerConfigTab();
   } else if (tabName === "Networking") {
@@ -1325,6 +1337,7 @@ function RenderServersTable() {
           ${EscapeHtml(server.Name)}
         </a>
         <div class="small font-monospace text-body-tertiary" style="font-size: 0.73rem;">${EscapeHtml(server.Id)}</div>
+        ${server.Tags && server.Tags.length > 0 ? `<div class="d-flex flex-wrap gap-1 mt-1">${server.Tags.map((t) => `<span class="badge bg-secondary-subtle text-secondary font-monospace" style="font-size: 0.65rem;">#${EscapeHtml(t)}</span>`).join("")}</div>` : ""}
       </td>
       <td>
         <span class="badge text-bg-dark border font-monospace">${EscapeHtml(templateLabel)}</span>
@@ -1591,6 +1604,12 @@ function HandleTerminalCommandSubmit(e) {
   const cmd = Elements.DetailTerminalInput.value.trim();
   if (!cmd || !ConsoleSocket || ConsoleSocket.readyState !== WebSocket.OPEN) return;
 
+  const line = document.createElement("div");
+  line.className = "terminal-line";
+  line.innerHTML = `<span class="text-primary fw-bold">&gt;</span> <span class="text-white">${EscapeHtml(cmd)}</span>`;
+  Elements.DetailTerminalOutput.appendChild(line);
+  ScrollTerminalToBottom();
+
   ConsoleSocket.send(JSON.stringify({ Command: cmd }));
   TerminalHistory.push(cmd);
   HistoryPointer = -1;
@@ -1616,11 +1635,16 @@ async function FetchServerFiles(serverId, subPath = "") {
 
 function RenderServerFilesTable(files) {
   Elements.DetailFilesTableBody.innerHTML = "";
+  if (Elements.FilesSelectAllCheckbox) Elements.FilesSelectAllCheckbox.checked = false;
+  if (Elements.FilesBatchBar) {
+    Elements.FilesBatchBar.classList.add("d-none");
+    Elements.FilesBatchBar.classList.remove("d-flex");
+  }
 
   if (ActiveDetailSubPath) {
     const trUp = document.createElement("tr");
     trUp.innerHTML = `
-      <td colspan="4" class="ps-3 py-2">
+      <td colspan="5" class="ps-3 py-2">
         <a href="#" class="text-decoration-none text-body small fw-medium" id="DirGoUpLink">
           <i class="bi bi-arrow-90deg-up me-2 text-primary"></i> .. (Parent Directory)
         </a>
@@ -1638,7 +1662,7 @@ function RenderServerFilesTable(files) {
   if (files.length === 0) {
     const emptyRow = document.createElement("tr");
     emptyRow.innerHTML = `
-      <td colspan="4" class="text-center py-4 text-body-secondary">
+      <td colspan="5" class="text-center py-4 text-body-secondary">
         Directory is empty.
       </td>
     `;
@@ -1658,7 +1682,10 @@ function RenderServerFilesTable(files) {
     const formattedSize = item.IsDirectory ? "-" : FormatBytes(item.Size);
 
     tr.innerHTML = `
-      <td class="ps-3 py-2">
+      <td class="ps-3 py-2" style="width: 38px;">
+        <input type="checkbox" class="form-check-input FileRowCheckbox" data-path="${EscapeHtml(relativePath)}">
+      </td>
+      <td class="py-2">
         <a href="#" class="text-decoration-none text-body small font-monospace FileItemLink" data-is-dir="${item.IsDirectory}" data-path="${EscapeHtml(relativePath)}">
           <i class="bi ${item.IsDirectory ? "bi-folder2 text-warning" : "bi-file-earmark-text text-primary"} me-2"></i>
           ${EscapeHtml(item.Name)}
@@ -1749,6 +1776,27 @@ function RenderServerFilesTable(files) {
         }
       }
     });
+  }
+
+  const checkboxes = Elements.DetailFilesTableBody.querySelectorAll(".FileRowCheckbox");
+  for (const cb of checkboxes) {
+    cb.addEventListener("change", UpdateFilesBatchState);
+  }
+}
+
+function UpdateFilesBatchState() {
+  if (!Elements.FilesBatchBar) return;
+  const checked = Elements.DetailFilesTableBody.querySelectorAll(".FileRowCheckbox:checked");
+  const count = checked.length;
+  if (count > 0) {
+    Elements.FilesBatchBar.classList.remove("d-none");
+    Elements.FilesBatchBar.classList.add("d-flex");
+    if (Elements.FilesBatchCountBadge) {
+      Elements.FilesBatchCountBadge.textContent = `${count} selected`;
+    }
+  } else {
+    Elements.FilesBatchBar.classList.add("d-none");
+    Elements.FilesBatchBar.classList.remove("d-flex");
   }
 }
 
@@ -2192,6 +2240,7 @@ function RenderServerConfigTab() {
   }
 
   FetchServerWebhook(server.Id);
+  RenderServerTags(server);
 }
 
 async function FetchServerWebhook(serverId) {
@@ -3768,6 +3817,33 @@ function SetupExtraServerFeatures() {
   if (Elements.DetailRefreshProcessesBtn) {
     Elements.DetailRefreshProcessesBtn.addEventListener("click", () => FetchServerProcesses(ActiveDetailServerId));
   }
+  if (Elements.FilesSelectAllCheckbox) {
+    Elements.FilesSelectAllCheckbox.addEventListener("change", (e) => {
+      const checked = e.target.checked;
+      const checkboxes = Elements.DetailFilesTableBody.querySelectorAll(".FileRowCheckbox");
+      for (const cb of checkboxes) {
+        cb.checked = checked;
+      }
+      UpdateFilesBatchState();
+    });
+  }
+  if (Elements.FilesBatchDeleteBtn) {
+    Elements.FilesBatchDeleteBtn.addEventListener("click", HandleFilesBatchDelete);
+  }
+  if (Elements.FilesBatchCompressBtn) {
+    Elements.FilesBatchCompressBtn.addEventListener("click", HandleFilesBatchCompress);
+  }
+  if (Elements.DetailAddTagBtn) {
+    Elements.DetailAddTagBtn.addEventListener("click", HandleAddTag);
+  }
+  if (Elements.DetailTagInput) {
+    Elements.DetailTagInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        HandleAddTag();
+      }
+    });
+  }
 }
 
 let RawInspectData = null;
@@ -4198,5 +4274,180 @@ async function HandleDbConnectionTest() {
     Elements.DbConnectionTestResult.innerHTML = `<span class="badge text-bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Network Error</span>`;
   } finally {
     Elements.DbConnectionTestBtn.disabled = false;
+  }
+}
+
+function RenderServerTags(server) {
+  if (!Elements.DetailTagsContainer) return;
+  Elements.DetailTagsContainer.innerHTML = "";
+  const tags = server.Tags || [];
+  if (tags.length === 0) {
+    Elements.DetailTagsContainer.innerHTML = `<span class="small text-body-secondary">No tags assigned.</span>`;
+    return;
+  }
+  for (const tag of tags) {
+    const badge = document.createElement("span");
+    badge.className = "badge bg-secondary-subtle text-secondary border font-monospace d-inline-flex align-items-center gap-1 px-2 py-1";
+    badge.innerHTML = `
+      <span>#${EscapeHtml(tag)}</span>
+      <button type="button" class="btn-close btn-close-white ms-1 RemoveTagBtn" style="font-size: 0.55rem;" data-tag="${EscapeHtml(tag)}"></button>
+    `;
+    badge.querySelector(".RemoveTagBtn").addEventListener("click", () => HandleRemoveTag(tag));
+    Elements.DetailTagsContainer.appendChild(badge);
+  }
+}
+
+async function HandleAddTag() {
+  const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+  if (!server || !Elements.DetailTagInput) return;
+  const raw = Elements.DetailTagInput.value.trim().toLowerCase().replace(/^#/, "").replace(/[^a-z0-9_-]/g, "");
+  if (!raw) return;
+  const currentTags = server.Tags || [];
+  if (currentTags.includes(raw)) {
+    Elements.DetailTagInput.value = "";
+    return;
+  }
+  const newTags = [...currentTags, raw];
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/tags`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Tags: newTags }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      server.Tags = newTags;
+      Elements.DetailTagInput.value = "";
+      RenderServerTags(server);
+      RenderServersTable();
+      ShowToast(`Tag #${raw} added`, "success");
+    } else {
+      ShowToast("Failed to add tag: " + json.Error, "error");
+    }
+  } catch {
+    ShowToast("Network error updating tags", "error");
+  }
+}
+
+async function HandleRemoveTag(tagToRemove) {
+  const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+  if (!server) return;
+  const newTags = (server.Tags || []).filter((t) => t !== tagToRemove);
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/tags`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Tags: newTags }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      server.Tags = newTags;
+      RenderServerTags(server);
+      RenderServersTable();
+      ShowToast(`Tag #${tagToRemove} removed`, "info");
+    } else {
+      ShowToast("Failed to remove tag: " + json.Error, "error");
+    }
+  } catch {
+    ShowToast("Network error updating tags", "error");
+  }
+}
+
+function RenderServerHealthcheck(server) {
+  if (!Elements.DetailHealthcheckTableBody || !Elements.DetailHealthcheckStatusBadge) return;
+  const logs = server.HealthLogs || [];
+  if (logs.length === 0) {
+    Elements.DetailHealthcheckStatusBadge.className = "badge text-bg-secondary";
+    Elements.DetailHealthcheckStatusBadge.textContent = "No Healthcheck Configured";
+    Elements.DetailHealthcheckTableBody.innerHTML = `
+      <tr><td colspan="4" class="text-center py-3 text-body-secondary font-monospace small">No Docker HEALTHCHECK instructions or probe history found for this container.</td></tr>
+    `;
+    return;
+  }
+  const latest = logs[logs.length - 1];
+  if (latest.ExitCode === 0) {
+    Elements.DetailHealthcheckStatusBadge.className = "badge text-bg-success";
+    Elements.DetailHealthcheckStatusBadge.innerHTML = `<i class="bi bi-heart-pulse-fill me-1"></i>Healthy`;
+  } else {
+    Elements.DetailHealthcheckStatusBadge.className = "badge text-bg-danger";
+    Elements.DetailHealthcheckStatusBadge.innerHTML = `<i class="bi bi-heartbreak-fill me-1"></i>Unhealthy (Code ${latest.ExitCode})`;
+  }
+
+  Elements.DetailHealthcheckTableBody.innerHTML = "";
+  const reversed = [...logs].reverse();
+  for (const log of reversed) {
+    const tr = document.createElement("tr");
+    const isSuccess = log.ExitCode === 0;
+    const badgeClass = isSuccess ? "text-bg-success" : "text-bg-danger";
+    const statusText = isSuccess ? "Passing (0)" : `Failing (${log.ExitCode})`;
+    const startFormatted = log.Start ? new Date(log.Start).toLocaleTimeString() : "-";
+    const endFormatted = log.End ? new Date(log.End).toLocaleTimeString() : "-";
+
+    tr.innerHTML = `
+      <td class="ps-3 py-2 font-monospace small">${startFormatted} - ${endFormatted}</td>
+      <td class="py-2"><span class="badge ${badgeClass} font-monospace">${statusText}</span></td>
+      <td class="py-2 font-monospace small text-body-secondary text-truncate" style="max-width: 320px;">${EscapeHtml(log.Output || "(no output)")}</td>
+    `;
+    Elements.DetailHealthcheckTableBody.appendChild(tr);
+  }
+}
+
+async function HandleFilesBatchDelete() {
+  const checked = Elements.DetailFilesTableBody.querySelectorAll(".FileRowCheckbox:checked");
+  if (checked.length === 0) return;
+  const paths = Array.from(checked).map((cb) => cb.dataset.path);
+  if (!confirm(`Are you sure you want to delete ${paths.length} selected items? This cannot be undone.`)) return;
+
+  Elements.FilesBatchDeleteBtn.disabled = true;
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/files/batch-delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Paths: paths }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      ShowToast(`Deleted ${json.Data?.DeletedCount || paths.length} files successfully`, "success");
+      FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+    } else {
+      ShowToast("Batch delete failed: " + json.Error, "error");
+    }
+  } catch {
+    ShowToast("Network error executing batch delete", "error");
+  } finally {
+    Elements.FilesBatchDeleteBtn.disabled = false;
+  }
+}
+
+async function HandleFilesBatchCompress() {
+  const checked = Elements.DetailFilesTableBody.querySelectorAll(".FileRowCheckbox:checked");
+  if (checked.length === 0) return;
+  const paths = Array.from(checked).map((cb) => cb.dataset.path);
+
+  const archiveName = prompt("Enter archive name (.tar.gz):", "archive.tar.gz");
+  if (!archiveName) return;
+
+  Elements.FilesBatchCompressBtn.disabled = true;
+  ShowToast("Compressing selected files...", "info");
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/files/compress`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        Paths: paths,
+        ArchiveName: archiveName.endsWith(".tar.gz") ? archiveName : `${archiveName}.tar.gz`,
+      }),
+    });
+    const json = await res.json();
+    if (json.Success) {
+      ShowToast("Archive created successfully", "success");
+      FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+    } else {
+      ShowToast("Compression failed: " + json.Error, "error");
+    }
+  } catch {
+    ShowToast("Network error compressing files", "error");
+  } finally {
+    Elements.FilesBatchCompressBtn.disabled = false;
   }
 }

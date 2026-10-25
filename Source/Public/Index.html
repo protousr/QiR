@@ -546,11 +546,28 @@
                   </button>
                 </div>
               </div>
+              <div id="FilesBatchBar" class="d-none align-items-center justify-content-between px-3 py-2 bg-primary bg-opacity-10 border-top border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-primary font-monospace" id="FilesBatchCountBadge">0 selected</span>
+                  <span class="small text-body-secondary">Batch volume actions</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-xs btn-outline-danger" id="FilesBatchDeleteBtn">
+                    <i class="bi bi-trash me-1"></i> Delete Selected
+                  </button>
+                  <button class="btn btn-xs btn-outline-secondary" id="FilesBatchCompressBtn">
+                    <i class="bi bi-file-earmark-zip me-1"></i> Compress Selected
+                  </button>
+                </div>
+              </div>
               <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                   <thead>
                     <tr>
-                      <th scope="col" class="ps-3 py-2">NAME</th>
+                      <th scope="col" style="width: 38px;" class="ps-3 py-2">
+                        <input type="checkbox" class="form-check-input" id="FilesSelectAllCheckbox" title="Select All">
+                      </th>
+                      <th scope="col" class="py-2">NAME</th>
                       <th scope="col" class="py-2">TYPE</th>
                       <th scope="col" class="py-2">SIZE</th>
                       <th scope="col" class="py-2 text-end pe-3">ACTIONS</th>
@@ -691,6 +708,19 @@
                     </button>
                   </div>
                   <div class="card-body p-3" id="DetailPortsContainer"></div>
+                </div>
+
+                <div class="card TableCard shadow-sm mb-3">
+                  <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2 small fw-medium">
+                    <span><i class="bi bi-tags me-1 text-primary"></i> Instance Tags &amp; Labels</span>
+                  </div>
+                  <div class="card-body p-3">
+                    <div class="d-flex flex-wrap align-items-center gap-1 mb-2" id="DetailTagsContainer"></div>
+                    <div class="input-group input-group-sm">
+                      <input type="text" class="form-control font-monospace" id="DetailTagInput" placeholder="Add tag (e.g. prod, api, db)...">
+                      <button class="btn btn-primary" id="DetailAddTagBtn" type="button"><i class="bi bi-plus-lg"></i> Add</button>
+                    </div>
+                  </div>
                 </div>
 
                                 <div class="card TableCard shadow-sm mt-3">
@@ -1002,6 +1032,29 @@
               </div>
               <div class="card-body p-0">
                 <pre class="m-0 p-3 font-monospace small" id="DetailDockerComposePre" style="max-height: 280px; overflow-y: auto; background-color: #07080a; color: #34d399;"></pre>
+              </div>
+            </div>
+
+            <div class="card TableCard shadow-sm mb-3">
+              <div class="card-header TableCardHeader d-flex align-items-center justify-content-between py-2">
+                <span class="fw-medium small"><i class="bi bi-heart-pulse me-1 text-primary"></i> Container Healthcheck History &amp; Diagnostics</span>
+                <span class="badge" id="DetailHealthcheckStatusBadge">None</span>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0 font-monospace small">
+                    <thead>
+                      <tr>
+                        <th class="ps-3 py-2">STARTED</th>
+                        <th class="py-2">EXIT CODE</th>
+                        <th class="py-2">OUTPUT LOG</th>
+                      </tr>
+                    </thead>
+                    <tbody id="DetailHealthcheckTableBody">
+                      <tr><td colspan="3" class="text-center py-3 text-body-secondary">No healthcheck events recorded.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>

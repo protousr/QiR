@@ -55,4 +55,6 @@ export async function ServerRoutes(fastify) {
     fastify.post("/servers/:Id/unpause", controller.UnpauseServer);
     fastify.post("/servers/:Id/ports/probe", controller.ProbeServerPort);
     fastify.get("/servers/:Id/compose", controller.GetDockerCompose);
+    fastify.put("/servers/:Id/tags", controller.UpdateServerTags);
+    fastify.post("/servers/:Id/files/batch-delete", controller.BatchDeleteFiles);
 }

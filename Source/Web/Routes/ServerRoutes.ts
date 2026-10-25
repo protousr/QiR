@@ -139,4 +139,9 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
     controller.ProbeServerPort
   );
   fastify.get<{ Params: { Id: string } }>("/servers/:Id/compose", controller.GetDockerCompose);
+  fastify.put<{ Params: { Id: string }; Body: { Tags: string[] } }>("/servers/:Id/tags", controller.UpdateServerTags);
+  fastify.post<{ Params: { Id: string }; Body: { Paths: string[] } }>(
+    "/servers/:Id/files/batch-delete",
+    controller.BatchDeleteFiles
+  );
 }

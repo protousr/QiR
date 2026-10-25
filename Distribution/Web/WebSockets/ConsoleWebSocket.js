@@ -54,12 +54,21 @@ export async function ConsoleWebSocketRoute(fastify) {
                     let commandToExecute = text;
                     try {
                         const parsed = JSON.parse(text);
-                        if (parsed.Type === "Input" && typeof parsed.Data === "string") {
+                        if (typeof parsed.Command === "string") {
+                            commandToExecute = parsed.Command;
+                        }
+                        else if (parsed.Type === "Input" && typeof parsed.Data === "string") {
                             commandToExecute = parsed.Data;
                         }
                     }
                     catch { }
-                    await serverService.SendCommand(serverId, commandToExecute);
+                    const output = await serverService.SendCommand(serverId, commandToExecute);
+                    if (socket.readyState === socket.OPEN && output) {
+                        socket.send(JSON.stringify({
+                            Type: "Log",
+                            Data: output.endsWith("\n") ? output : output + "\n",
+                        }));
+                    }
                 }
                 catch (err) {
                     if (socket.readyState === socket.OPEN) {
