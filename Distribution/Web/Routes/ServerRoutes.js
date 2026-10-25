@@ -59,4 +59,6 @@ export async function ServerRoutes(fastify) {
     fastify.post("/servers/:Id/files/batch-delete", controller.BatchDeleteFiles);
     fastify.get("/servers/:Id/diff", controller.GetServerFilesystemChanges);
     fastify.post("/servers/:Id/network/sockets", controller.ScanServerSockets);
+    fastify.post("/servers/:Id/db/query", controller.ExecuteDatabaseQuery);
+    fastify.get("/servers/ports/suggest", controller.SuggestAvailablePort);
 }

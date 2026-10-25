@@ -350,6 +350,17 @@ const Elements = {
   EnvVarsCountBadge: document.getElementById("EnvVarsCountBadge"),
   DetailScanSocketsBtn: document.getElementById("DetailScanSocketsBtn"),
   DetailSocketsTableBody: document.getElementById("DetailSocketsTableBody"),
+  DbQueryInput: document.getElementById("DbQueryInput"),
+  DbExecuteQueryBtn: document.getElementById("DbExecuteQueryBtn"),
+  DbQueryOutputWrapper: document.getElementById("DbQueryOutputWrapper"),
+  DbQueryOutputPre: document.getElementById("DbQueryOutputPre"),
+  DbQueryTimeBadge: document.getElementById("DbQueryTimeBadge"),
+  DbQueryClearBtn: document.getElementById("DbQueryClearBtn"),
+  DetailMetricsExportBtn: document.getElementById("DetailMetricsExportBtn"),
+  EnvPresetProfileSelect: document.getElementById("EnvPresetProfileSelect"),
+  EnvPresetApplyBtn: document.getElementById("EnvPresetApplyBtn"),
+  SuggestNextPortBtn: document.getElementById("SuggestNextPortBtn"),
+  PortConflictFeedback: document.getElementById("PortConflictFeedback"),
 };
 
 function GetBootstrapModal(element) {
@@ -1570,6 +1581,7 @@ function ConnectWebSockets(serverId) {
       const msg = JSON.parse(event.data);
       if (msg.Type === "Stats" && msg.Data) {
         const stats = msg.Data;
+        LastMetricStats = stats;
         const cpuPct = Math.min(100, Math.max(0, stats.CpuPercentage || 0));
         Elements.DetailCpuMetric.textContent = `${cpuPct.toFixed(1)}%`;
         Elements.DetailCpuProgressBar.style.width = `${cpuPct}%`;
@@ -3888,6 +3900,41 @@ function SetupExtraServerFeatures() {
   if (Elements.DetailScanSocketsBtn) {
     Elements.DetailScanSocketsBtn.addEventListener("click", () => HandleScanSockets(ActiveDetailServerId));
   }
+  if (Elements.DbExecuteQueryBtn) {
+    Elements.DbExecuteQueryBtn.addEventListener("click", HandleDbQuerySubmit);
+  }
+  if (Elements.DbQueryInput) {
+    Elements.DbQueryInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        HandleDbQuerySubmit();
+      }
+    });
+  }
+  if (Elements.DbQueryClearBtn) {
+    Elements.DbQueryClearBtn.addEventListener("click", () => {
+      if (Elements.DbQueryOutputWrapper) Elements.DbQueryOutputWrapper.classList.add("d-none");
+      if (Elements.DbQueryOutputPre) Elements.DbQueryOutputPre.textContent = "";
+    });
+  }
+  const dbShortcuts = document.querySelectorAll(".DbShortcutBtn");
+  for (const btn of dbShortcuts) {
+    btn.addEventListener("click", () => {
+      if (Elements.DbQueryInput) {
+        Elements.DbQueryInput.value = btn.dataset.query;
+        HandleDbQuerySubmit();
+      }
+    });
+  }
+  if (Elements.DetailMetricsExportBtn) {
+    Elements.DetailMetricsExportBtn.addEventListener("click", HandleMetricsExportCsv);
+  }
+  if (Elements.EnvPresetApplyBtn) {
+    Elements.EnvPresetApplyBtn.addEventListener("click", HandleApplyEnvPreset);
+  }
+  if (Elements.SuggestNextPortBtn) {
+    Elements.SuggestNextPortBtn.addEventListener("click", HandleSuggestNextPort);
+  }
 }
 
 let RawInspectData = null;
@@ -4636,5 +4683,112 @@ async function HandleScanSockets(serverId) {
     ShowToast("Failed to scan sockets", "error");
   } finally {
     if (Elements.DetailScanSocketsBtn) Elements.DetailScanSocketsBtn.disabled = false;
+  }
+}
+
+let LastMetricStats = null;
+
+async function HandleDbQuerySubmit() {
+  const query = Elements.DbQueryInput?.value.trim();
+  if (!query || !ActiveDetailServerId) return;
+
+  Elements.DbExecuteQueryBtn.disabled = true;
+  Elements.DbExecuteQueryBtn.innerHTML = `<i class="bi bi-hourglass-split me-1"></i> Running...`;
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/db/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Query: query }),
+    });
+    const json = await res.json();
+    if (Elements.DbQueryOutputWrapper) Elements.DbQueryOutputWrapper.classList.remove("d-none");
+    if (json.Success && json.Data) {
+      if (Elements.DbQueryOutputPre) Elements.DbQueryOutputPre.textContent = json.Data.Output || "(Empty result set)";
+      if (Elements.DbQueryTimeBadge) Elements.DbQueryTimeBadge.textContent = `${json.Data.ExecutionTimeMs}ms`;
+      ShowToast(`Query executed in ${json.Data.ExecutionTimeMs}ms`, "success");
+    } else {
+      if (Elements.DbQueryOutputPre) Elements.DbQueryOutputPre.textContent = "Error: " + (json.Error || "Query failed");
+      if (Elements.DbQueryTimeBadge) Elements.DbQueryTimeBadge.textContent = "Failed";
+      ShowToast("Query failed: " + json.Error, "error");
+    }
+  } catch {
+    ShowToast("Network error executing database query", "error");
+  } finally {
+    Elements.DbExecuteQueryBtn.disabled = false;
+    Elements.DbExecuteQueryBtn.innerHTML = `<i class="bi bi-play-fill me-1"></i> Execute`;
+  }
+}
+
+function HandleMetricsExportCsv() {
+  const server = Servers.find((s) => s.Id === ActiveDetailServerId);
+  const serverName = server?.Name || "server";
+  const now = new Date().toISOString();
+
+  let csv = "Timestamp,ServerId,ServerName,CpuPercent,RamPercent,RamUsageMB,RamLimitMB,NetInputBytes,NetOutputBytes\n";
+  const memUsageMb = Math.round((LastMetricStats?.MemoryUsageBytes || 0) / (1024 * 1024));
+  const memLimitMb = Math.round((LastMetricStats?.MemoryLimitBytes || 0) / (1024 * 1024));
+
+  csv += `${now},${ActiveDetailServerId || ""},${serverName},${LastMetricStats?.CpuPercentage || 0},${LastMetricStats?.MemoryPercentage || 0},${memUsageMb},${memLimitMb},${LastMetricStats?.NetworkInputBytes || 0},${LastMetricStats?.NetworkOutputBytes || 0}\n`;
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `qir-telemetry-${ActiveDetailServerId || "metrics"}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  ShowToast("Telemetry metrics exported to CSV", "success");
+}
+
+function HandleApplyEnvPreset() {
+  const preset = Elements.EnvPresetProfileSelect?.value;
+  if (!preset) {
+    ShowToast("Select a stack preset to apply", "warning");
+    return;
+  }
+
+  let vars = {};
+  if (preset === "nodejs") {
+    vars = { NODE_ENV: "production", PORT: "3000", LOG_LEVEL: "info", UV_THREADPOOL_SIZE: "8" };
+  } else if (preset === "fastapi") {
+    vars = { ENVIRONMENT: "production", PORT: "8000", WORKERS: "4", LOG_LEVEL: "info", RELOAD: "false" };
+  } else if (preset === "database") {
+    vars = { MAX_CONNECTIONS: "200", SHARED_BUFFERS: "256MB", WORK_MEM: "16MB", MAINTENANCE_WORK_MEM: "64MB" };
+  } else if (preset === "debug") {
+    vars = { DEBUG: "*", VERBOSE: "true", LOG_LEVEL: "debug", NODE_ENV: "development" };
+  }
+
+  const entries = Object.entries(vars);
+  for (const [k, v] of entries) {
+    AddEnvRow(k, v);
+  }
+  ShowToast(`Applied ${entries.length} variables from '${preset}' preset`, "success");
+}
+
+async function HandleSuggestNextPort() {
+  if (!Elements.SuggestNextPortBtn) return;
+  Elements.SuggestNextPortBtn.disabled = true;
+  Elements.SuggestNextPortBtn.innerHTML = `<i class="bi bi-hourglass-split me-1"></i> Checking...`;
+
+  try {
+    const res = await fetch("/api/servers/ports/suggest?Start=3000");
+    const json = await res.json();
+    if (json.Success && json.Data?.Port) {
+      if (Elements.AddHostPortInput) Elements.AddHostPortInput.value = json.Data.Port;
+      if (Elements.PortConflictFeedback) {
+        Elements.PortConflictFeedback.innerHTML = `<span class="badge text-bg-success"><i class="bi bi-check-circle-fill me-1"></i>Port ${json.Data.Port} is guaranteed free</span>`;
+      }
+      ShowToast(`Suggested next available port: ${json.Data.Port}`, "success");
+    } else {
+      ShowToast("Could not determine next port", "warning");
+    }
+  } catch {
+    ShowToast("Network error checking available ports", "error");
+  } finally {
+    Elements.SuggestNextPortBtn.disabled = false;
+    Elements.SuggestNextPortBtn.innerHTML = `<i class="bi bi-lightbulb me-1"></i> Suggest Next Open Port`;
   }
 }

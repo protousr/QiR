@@ -711,4 +711,34 @@ export class ServerController {
             });
         }
     };
+    ExecuteDatabaseQuery = async (request, reply) => {
+        try {
+            const { Query } = request.body || {};
+            if (!Query || typeof Query !== "string") {
+                reply.status(400).send({ Success: false, Error: "Query string is required" });
+                return;
+            }
+            const result = await this.ServerService.ExecuteDatabaseQuery(request.params.Id, Query);
+            reply.send({ Success: true, Data: result });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Database query execution failed",
+            });
+        }
+    };
+    SuggestAvailablePort = async (request, reply) => {
+        try {
+            const startPort = Number(request.query?.Start) || 3000;
+            const port = await this.ServerService.SuggestAvailablePort(startPort);
+            reply.send({ Success: true, Data: { Port: port } });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to suggest available port",
+            });
+        }
+    };
 }

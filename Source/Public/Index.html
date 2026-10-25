@@ -384,6 +384,29 @@
                 </button>
               </div>
             </div>
+            <div class="mt-2 pt-2 border-top">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="small fw-semibold text-body"><i class="bi bi-terminal-split me-1 text-primary"></i> Interactive Query Runner</span>
+                <div class="d-flex gap-1" id="DbQueryShortcuts">
+                  <button type="button" class="btn btn-xs btn-outline-secondary DbShortcutBtn" data-query="SHOW TABLES;">Tables</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary DbShortcutBtn" data-query="SELECT VERSION();">Version</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary DbShortcutBtn" data-query="STATUS;">Status</button>
+                </div>
+              </div>
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control font-monospace" id="DbQueryInput" placeholder="Enter query (e.g. SHOW TABLES; or KEYS *)...">
+                <button class="btn btn-primary" id="DbExecuteQueryBtn">
+                  <i class="bi bi-play-fill me-1"></i> Execute
+                </button>
+              </div>
+              <div id="DbQueryOutputWrapper" class="mt-2 d-none">
+                <div class="d-flex align-items-center justify-content-between small text-body-secondary mb-1">
+                  <span>Output (<span id="DbQueryTimeBadge">0ms</span>)</span>
+                  <button type="button" class="btn btn-xs btn-link text-secondary p-0 text-decoration-none" id="DbQueryClearBtn">Clear</button>
+                </div>
+                <pre class="m-0 p-2 rounded font-monospace small bg-dark border text-light" id="DbQueryOutputPre" style="max-height: 180px; overflow-y: auto; font-size: 0.78rem;"></pre>
+              </div>
+            </div>
           </div>
 
           <ul class="nav nav-tabs DetailTabs mb-3" id="ServerDetailTabs">
@@ -486,6 +509,7 @@
                     <label class="form-check-label text-body-secondary" for="DetailConsoleAutoscroll">Auto-scroll</label>
                   </div>
                   <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="DetailConsoleDownloadBtn" title="Export Console Output">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="DetailMetricsExportBtn" title="Export Historical Telemetry Data (CSV)"><i class="bi bi-file-earmark-spreadsheet"></i></button>
                     <i class="bi bi-download"></i>
                   </button>
                   <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="DetailConsoleClearBtn" title="Clear Viewport">
@@ -828,6 +852,18 @@
                     </select>
                     <button class="btn btn-xs btn-outline-secondary" id="EnvCloneApplyBtn" title="Clone variables from another server">
                       <i class="bi bi-copy"></i>
+                    </button>
+                  </div>
+                  <div class="d-none d-lg-flex align-items-center gap-1">
+                    <select class="form-select form-select-sm py-0 px-2 font-monospace small" id="EnvPresetProfileSelect" style="max-width: 170px;">
+                      <option value="">Presets...</option>
+                      <option value="nodejs">Production Node.js</option>
+                      <option value="fastapi">Production Python</option>
+                      <option value="database">Database Tuned</option>
+                      <option value="debug">Verbose Debug</option>
+                    </select>
+                    <button class="btn btn-xs btn-outline-primary" id="EnvPresetApplyBtn" title="Apply Stack Preset">
+                      <i class="bi bi-magic"></i>
                     </button>
                   </div>
                   <button class="btn btn-xs btn-outline-primary" id="EnvAddRowBtn">
@@ -1651,6 +1687,12 @@
           <div class="modal-body">
             <div class="alert alert-secondary py-2 px-3 small mb-3">
               Adding a port updates container bindings while preserving all files, environment variables, and volumes.
+            </div>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span class="small text-body-secondary" id="PortConflictFeedback">Allocate an available port</span>
+              <button type="button" class="btn btn-xs btn-outline-info" id="SuggestNextPortBtn">
+                <i class="bi bi-lightbulb me-1"></i> Suggest Next Open Port
+              </button>
             </div>
             <div class="row g-2 mb-3">
               <div class="col-sm-5">

@@ -898,4 +898,55 @@ export class ServerService {
         }
         return sockets;
     }
+    async ExecuteDatabaseQuery(serverId, rawQuery) {
+        const server = this.Servers.get(serverId);
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
+        }
+        const tId = server.TemplateId.toLowerCase();
+        const env = server.EnvironmentVariables || {};
+        let cmd = "";
+        if (tId.includes("redis")) {
+            const pwd = env.REDIS_PASSWORD || "";
+            cmd = pwd
+                ? `redis-cli -a "${pwd.replace(/"/g, '\\"')}" ${rawQuery}`
+                : `redis-cli ${rawQuery}`;
+        }
+        else if (tId.includes("postgresql")) {
+            const user = env.POSTGRES_USER || "postgres";
+            const db = env.POSTGRES_DB || "postgres";
+            cmd = `psql -U "${user}" -d "${db}" -c "${rawQuery.replace(/"/g, '\\"')}"`;
+        }
+        else if (tId.includes("mariadb") || tId.includes("mysql")) {
+            const pwd = env.MYSQL_ROOT_PASSWORD || "";
+            const db = env.MYSQL_DATABASE || "";
+            const dbFlag = db ? ` -D "${db}"` : "";
+            cmd = pwd
+                ? `mariadb -uroot -p"${pwd.replace(/"/g, '\\"')}"${dbFlag} -e "${rawQuery.replace(/"/g, '\\"')}"`
+                : `mariadb -uroot${dbFlag} -e "${rawQuery.replace(/"/g, '\\"')}"`;
+        }
+        else if (tId.includes("mongo")) {
+            cmd = `mongosh --eval "${rawQuery.replace(/"/g, '\\"')}"`;
+        }
+        else {
+            throw new Error("This container does not use a supported database blueprint");
+        }
+        const startTime = Date.now();
+        const output = await this.SendCommand(serverId, cmd);
+        const duration = Date.now() - startTime;
+        return { Output: output, ExecutionTimeMs: duration };
+    }
+    async SuggestAvailablePort(startPort = 3000) {
+        const allocated = new Set();
+        for (const s of this.Servers.values()) {
+            for (const p of s.Ports) {
+                allocated.add(p.HostPort);
+            }
+        }
+        let candidate = Math.max(1024, startPort);
+        while (allocated.has(candidate)) {
+            candidate++;
+        }
+        return candidate;
+    }
 }

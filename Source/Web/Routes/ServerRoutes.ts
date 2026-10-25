@@ -146,4 +146,6 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
   );
   fastify.get<{ Params: { Id: string } }>("/servers/:Id/diff", controller.GetServerFilesystemChanges);
   fastify.post<{ Params: { Id: string } }>("/servers/:Id/network/sockets", controller.ScanServerSockets);
+  fastify.post<{ Params: { Id: string }; Body: { Query: string } }>("/servers/:Id/db/query", controller.ExecuteDatabaseQuery);
+  fastify.get<{ Querystring: { Start?: string } }>("/servers/ports/suggest", controller.SuggestAvailablePort);
 }
