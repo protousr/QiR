@@ -1,0 +1,176 @@
+import { DatabaseSync } from "node:sqlite";
+import path from "node:path";
+import fs from "node:fs";
+import { ConfigInstance } from "../../Config/EnvironmentConfig.js";
+
+export interface IUserRecord {
+  Id: string;
+  Username: string;
+  PasswordHash: string;
+  PasswordSalt: string;
+  CreatedAt: string;
+}
+
+export interface ISessionRecord {
+  Id: string;
+  UserId: string;
+  TokenHash: string;
+  CreatedAt: string;
+  ExpiresAt: string;
+  IpAddress: string;
+  UserAgent: string;
+}
+
+export interface ISecretRecord {
+  Key: string;
+  Iv: string;
+  AuthTag: string;
+  Ciphertext: string;
+  UpdatedAt: string;
+}
+
+export interface IAuditLogRecord {
+  Id: string;
+  Timestamp: string;
+  Action: string;
+  IpAddress: string;
+  Details: string;
+}
+
+export class DatabaseManager {
+  private static Instance: DatabaseManager;
+  private readonly Database: DatabaseSync;
+
+  private constructor() {
+    fs.mkdirSync(ConfigInstance.DataDirectory, { recursive: true });
+    const dbPath = path.resolve(ConfigInstance.DataDirectory, "QiR.db");
+    this.Database = new DatabaseSync(dbPath);
+    this.InitializeSchema();
+  }
+
+  public static GetInstance(): DatabaseManager {
+    if (!DatabaseManager.Instance) {
+      DatabaseManager.Instance = new DatabaseManager();
+    }
+    return DatabaseManager.Instance;
+  }
+
+  private InitializeSchema(): void {
+    this.Database.exec(`
+      PRAGMA journal_mode = WAL;
+      PRAGMA synchronous = NORMAL;
+
+      CREATE TABLE IF NOT EXISTS Users (
+        Id TEXT PRIMARY KEY,
+        Username TEXT UNIQUE NOT NULL,
+        PasswordHash TEXT NOT NULL,
+        PasswordSalt TEXT NOT NULL,
+        CreatedAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS Sessions (
+        Id TEXT PRIMARY KEY,
+        UserId TEXT NOT NULL,
+        TokenHash TEXT UNIQUE NOT NULL,
+        CreatedAt TEXT NOT NULL,
+        ExpiresAt TEXT NOT NULL,
+        IpAddress TEXT NOT NULL,
+        UserAgent TEXT NOT NULL,
+        FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS Secrets (
+        Key TEXT PRIMARY KEY,
+        Iv TEXT NOT NULL,
+        AuthTag TEXT NOT NULL,
+        Ciphertext TEXT NOT NULL,
+        UpdatedAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS AuditLogs (
+        Id TEXT PRIMARY KEY,
+        Timestamp TEXT NOT NULL,
+        Action TEXT NOT NULL,
+        IpAddress TEXT NOT NULL,
+        Details TEXT NOT NULL
+      );
+    `);
+  }
+
+  public GetDatabase(): DatabaseSync {
+    return this.Database;
+  }
+
+  public HasAnyUser(): boolean {
+    const row = this.Database.prepare("SELECT COUNT(*) as count FROM Users").get() as {
+      count: number;
+    };
+    return row.count > 0;
+  }
+
+  public CreateUser(user: IUserRecord): void {
+    const stmt = this.Database.prepare(
+      "INSERT INTO Users (Id, Username, PasswordHash, PasswordSalt, CreatedAt) VALUES (?, ?, ?, ?, ?)"
+    );
+    stmt.run(user.Id, user.Username, user.PasswordHash, user.PasswordSalt, user.CreatedAt);
+  }
+
+  public FindUserByUsername(username: string): IUserRecord | undefined {
+    const stmt = this.Database.prepare("SELECT * FROM Users WHERE Username = ?");
+    return stmt.get(username) as IUserRecord | undefined;
+  }
+
+  public FindUserById(id: string): IUserRecord | undefined {
+    const stmt = this.Database.prepare("SELECT * FROM Users WHERE Id = ?");
+    return stmt.get(id) as IUserRecord | undefined;
+  }
+
+  public CreateSession(session: ISessionRecord): void {
+    const stmt = this.Database.prepare(
+      "INSERT INTO Sessions (Id, UserId, TokenHash, CreatedAt, ExpiresAt, IpAddress, UserAgent) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    );
+    stmt.run(
+      session.Id,
+      session.UserId,
+      session.TokenHash,
+      session.CreatedAt,
+      session.ExpiresAt,
+      session.IpAddress,
+      session.UserAgent
+    );
+  }
+
+  public FindSessionByTokenHash(tokenHash: string): ISessionRecord | undefined {
+    const stmt = this.Database.prepare("SELECT * FROM Sessions WHERE TokenHash = ?");
+    return stmt.get(tokenHash) as ISessionRecord | undefined;
+  }
+
+  public DeleteSessionByTokenHash(tokenHash: string): void {
+    const stmt = this.Database.prepare("DELETE FROM Sessions WHERE TokenHash = ?");
+    stmt.run(tokenHash);
+  }
+
+  public CleanExpiredSessions(): void {
+    const stmt = this.Database.prepare("DELETE FROM Sessions WHERE ExpiresAt < ?");
+    stmt.run(new Date().toISOString());
+  }
+
+  public SaveSecret(secret: ISecretRecord): void {
+    const stmt = this.Database.prepare(
+      "INSERT INTO Secrets (Key, Iv, AuthTag, Ciphertext, UpdatedAt) VALUES (?, ?, ?, ?, ?) ON CONFLICT(Key) DO UPDATE SET Iv=excluded.Iv, AuthTag=excluded.AuthTag, Ciphertext=excluded.Ciphertext, UpdatedAt=excluded.UpdatedAt"
+    );
+    stmt.run(secret.Key, secret.Iv, secret.AuthTag, secret.Ciphertext, secret.UpdatedAt);
+  }
+
+  public GetSecret(key: string): ISecretRecord | undefined {
+    const stmt = this.Database.prepare("SELECT * FROM Secrets WHERE Key = ?");
+    return stmt.get(key) as ISecretRecord | undefined;
+  }
+
+  public LogAudit(log: IAuditLogRecord): void {
+    const stmt = this.Database.prepare(
+      "INSERT INTO AuditLogs (Id, Timestamp, Action, IpAddress, Details) VALUES (?, ?, ?, ?, ?)"
+    );
+    stmt.run(log.Id, log.Timestamp, log.Action, log.IpAddress, log.Details);
+  }
+}

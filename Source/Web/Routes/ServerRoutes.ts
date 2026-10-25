@@ -1,7 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { ServerController } from "../Controllers/ServerController.js";
+import { RequireAuth } from "../Middleware/AuthMiddleware.js";
 
 export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.addHook("preHandler", RequireAuth);
   const controller = new ServerController();
 
   fastify.get("/servers", controller.GetAllServers);

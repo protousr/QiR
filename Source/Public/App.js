@@ -3,10 +3,27 @@ let Servers = [];
 let ActiveConsoleServerId = null;
 let ConsoleSocket = null;
 let StatsSocket = null;
-let DeployModalInstance = null;
-let ConsoleModalInstance = null;
+let CurrentAuthToken = null;
+let CurrentUser = null;
+let PollingIntervals = [];
 
 const Elements = {
+  AuthOverlay: document.getElementById("AuthOverlay"),
+  AuthTitle: document.getElementById("AuthTitle"),
+  AuthSubtitle: document.getElementById("AuthSubtitle"),
+  AuthErrorAlert: document.getElementById("AuthErrorAlert"),
+  LoginForm: document.getElementById("LoginForm"),
+  LoginUsername: document.getElementById("LoginUsername"),
+  LoginPassword: document.getElementById("LoginPassword"),
+  LoginSubmitBtn: document.getElementById("LoginSubmitBtn"),
+  SetupForm: document.getElementById("SetupForm"),
+  SetupUsername: document.getElementById("SetupUsername"),
+  SetupPassword: document.getElementById("SetupPassword"),
+  SetupConfirmPassword: document.getElementById("SetupConfirmPassword"),
+  SetupSubmitBtn: document.getElementById("SetupSubmitBtn"),
+  AppWrapper: document.getElementById("AppWrapper"),
+  CurrentUsernameText: document.getElementById("CurrentUsernameText"),
+  LogoutButton: document.getElementById("LogoutButton"),
   NavServers: document.getElementById("NavServers"),
   NavTemplates: document.getElementById("NavTemplates"),
   NavSystem: document.getElementById("NavSystem"),
@@ -55,7 +72,149 @@ function GetBootstrapModal(element) {
   return null;
 }
 
-function Initialize() {
+function ShowAuthError(message) {
+  Elements.AuthErrorAlert.classList.remove("d-none");
+  Elements.AuthErrorAlert.textContent = message;
+}
+
+function HideAuthError() {
+  Elements.AuthErrorAlert.classList.add("d-none");
+  Elements.AuthErrorAlert.textContent = "";
+}
+
+async function CheckAuthentication() {
+  try {
+    const setupRes = await fetch("/api/auth/setup-status");
+    const setupJson = await setupRes.json();
+
+    if (setupJson.Success && setupJson.Data.SetupRequired) {
+      Elements.AuthOverlay.style.display = "flex";
+      Elements.AppWrapper.style.setProperty("display", "none", "important");
+      Elements.LoginForm.classList.add("d-none");
+      Elements.SetupForm.classList.remove("d-none");
+      Elements.AuthTitle.textContent = "Initialize Master Admin";
+      Elements.AuthSubtitle.textContent = "Secure your QiR panel by creating the primary administrator account.";
+      return;
+    }
+
+    const meRes = await fetch("/api/auth/me");
+    if (meRes.ok) {
+      const meJson = await meRes.json();
+      if (meJson.Success) {
+        CurrentUser = meJson.Data;
+        OnAuthenticated();
+        return;
+      }
+    }
+
+    Elements.AuthOverlay.style.display = "flex";
+    Elements.AppWrapper.style.setProperty("display", "none", "important");
+    Elements.LoginForm.classList.remove("d-none");
+    Elements.SetupForm.classList.add("d-none");
+    Elements.AuthTitle.textContent = "Sign In";
+    Elements.AuthSubtitle.textContent = "Authenticate to access your private Docker panel.";
+  } catch {
+    Elements.AuthOverlay.style.display = "flex";
+    Elements.AppWrapper.style.setProperty("display", "none", "important");
+  }
+}
+
+function OnAuthenticated() {
+  Elements.AuthOverlay.style.display = "none";
+  Elements.AppWrapper.style.removeProperty("display");
+  Elements.CurrentUsernameText.textContent = CurrentUser ? CurrentUser.Username : "Admin";
+
+  InitializeDashboard();
+}
+
+function SetupAuthEventListeners() {
+  Elements.LoginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    HideAuthError();
+    Elements.LoginSubmitBtn.disabled = true;
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          Username: Elements.LoginUsername.value.trim(),
+          Password: Elements.LoginPassword.value,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.Success) {
+        CurrentUser = json.Data.User;
+        CurrentAuthToken = json.Data.Token;
+        OnAuthenticated();
+      } else {
+        ShowAuthError(json.Error || "Authentication failed");
+      }
+    } catch {
+      ShowAuthError("Network error attempting login");
+    } finally {
+      Elements.LoginSubmitBtn.disabled = false;
+    }
+  });
+
+  Elements.SetupForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    HideAuthError();
+
+    const username = Elements.SetupUsername.value.trim();
+    const password = Elements.SetupPassword.value;
+    const confirm = Elements.SetupConfirmPassword.value;
+
+    if (password !== confirm) {
+      ShowAuthError("Passwords do not match");
+      return;
+    }
+
+    if (password.length < 8) {
+      ShowAuthError("Password must be at least 8 characters long");
+      return;
+    }
+
+    Elements.SetupSubmitBtn.disabled = true;
+
+    try {
+      const res = await fetch("/api/auth/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ Username: username, Password: password }),
+      });
+
+      const json = await res.json();
+      if (json.Success) {
+        CurrentUser = json.Data.User;
+        CurrentAuthToken = json.Data.Token;
+        OnAuthenticated();
+      } else {
+        ShowAuthError(json.Error || "Failed to initialize admin");
+      }
+    } catch {
+      ShowAuthError("Network error during setup");
+    } finally {
+      Elements.SetupSubmitBtn.disabled = false;
+    }
+  });
+
+  Elements.LogoutButton.addEventListener("click", async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {}
+    CurrentUser = null;
+    CurrentAuthToken = null;
+    for (const interval of PollingIntervals) {
+      clearInterval(interval);
+    }
+    PollingIntervals = [];
+    window.location.reload();
+  });
+}
+
+function InitializeDashboard() {
   SetupNavigation();
   SetupEventListeners();
 
@@ -63,8 +222,8 @@ function Initialize() {
     FetchServers();
   });
 
-  setInterval(FetchServers, 4000);
-  setInterval(FetchSystemStatus, 10000);
+  PollingIntervals.push(setInterval(FetchServers, 4000));
+  PollingIntervals.push(setInterval(FetchSystemStatus, 10000));
 
   Elements.ConsoleModal.addEventListener("hidden.bs.modal", () => {
     CloseWebSockets();
@@ -132,6 +291,10 @@ function SetupEventListeners() {
 async function FetchSystemStatus() {
   try {
     const res = await fetch("/api/system/status");
+    if (res.status === 401) {
+      window.location.reload();
+      return;
+    }
     const json = await res.json();
     if (json.Success) {
       const data = json.Data;
@@ -140,7 +303,7 @@ async function FetchSystemStatus() {
       if (data.DockerConnected) {
         Elements.DockerStatusBadge.className = "badge text-bg-success";
         Elements.DockerStatusBadge.textContent = "Connected";
-        Elements.DockerSocketText.textContent = "Docker Engine daemon online";
+        Elements.DockerSocketText.textContent = "Docker Engine online";
       } else {
         Elements.DockerStatusBadge.className = "badge text-bg-danger";
         Elements.DockerStatusBadge.textContent = "Disconnected";
@@ -180,6 +343,7 @@ function RenderSystemDiagnostics(data) {
 async function FetchTemplates() {
   try {
     const res = await fetch("/api/templates");
+    if (res.status === 401) return;
     const json = await res.json();
     if (json.Success) {
       Templates = json.Data;
@@ -267,15 +431,15 @@ function RenderTemplatesView() {
     const col = document.createElement("div");
     col.className = "col-md-6 col-xl-3";
     col.innerHTML = `
-      <div class="card border-secondary-subtle shadow-sm h-100">
+      <div class="card MetricCard shadow-sm h-100">
         <div class="card-body d-flex flex-column">
           <div class="d-flex align-items-center justify-content-between mb-2">
             <span class="badge text-bg-secondary font-monospace">${EscapeHtml(t.Category)}</span>
-            <span class="badge text-bg-dark border border-secondary-subtle font-monospace">${EscapeHtml(t.DefaultImage)}</span>
+            <span class="badge text-bg-dark border font-monospace">${EscapeHtml(t.DefaultImage)}</span>
           </div>
           <h5 class="card-title fw-bold fs-6 mb-1">${EscapeHtml(t.Name)}</h5>
           <p class="card-text small text-body-secondary mb-3 flex-grow-1">${EscapeHtml(t.Description)}</p>
-          <div class="d-flex justify-content-between align-items-center border-top border-secondary-subtle pt-2 mt-auto">
+          <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-auto">
             <span class="small font-monospace text-body-tertiary">Mount: ${EscapeHtml(t.VolumeMountPath || "None")}</span>
             <button class="btn btn-sm btn-outline-primary" data-template-id="${EscapeHtml(t.Id)}">Deploy</button>
           </div>
@@ -297,6 +461,7 @@ function RenderTemplatesView() {
 async function FetchServers() {
   try {
     const res = await fetch("/api/servers");
+    if (res.status === 401) return;
     const json = await res.json();
     if (json.Success) {
       Servers = json.Data;
@@ -361,7 +526,7 @@ function RenderServersTable() {
         <div class="small font-monospace text-body-tertiary" style="font-size: 0.75rem;">${EscapeHtml(server.Id)}</div>
       </td>
       <td>
-        <span class="badge text-bg-light border border-secondary-subtle font-monospace">${EscapeHtml(templateLabel)}</span>
+        <span class="badge text-bg-dark border font-monospace">${EscapeHtml(templateLabel)}</span>
       </td>
       <td>
         <span class="badge ${statusBadgeClass}">${server.Status}</span>
@@ -514,8 +679,9 @@ function OpenConsole(serverId) {
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const host = window.location.host;
+  const tokenQuery = CurrentAuthToken ? `?token=${encodeURIComponent(CurrentAuthToken)}` : "";
 
-  ConsoleSocket = new WebSocket(`${protocol}//${host}/ws/servers/${serverId}/console`);
+  ConsoleSocket = new WebSocket(`${protocol}//${host}/ws/servers/${serverId}/console${tokenQuery}`);
   ConsoleSocket.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data);
@@ -533,7 +699,7 @@ function OpenConsole(serverId) {
     }
   };
 
-  StatsSocket = new WebSocket(`${protocol}//${host}/ws/servers/${serverId}/stats`);
+  StatsSocket = new WebSocket(`${protocol}//${host}/ws/servers/${serverId}/stats${tokenQuery}`);
   StatsSocket.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data);
@@ -576,4 +742,5 @@ function EscapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
-Initialize();
+SetupAuthEventListeners();
+CheckAuthentication();

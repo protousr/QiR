@@ -1,4 +1,16 @@
 :root {
+  --qir-bg-base: #0B0C10;
+  --qir-bg-surface: #12141A;
+  --qir-bg-card: #171922;
+  --qir-bg-elevated: #1D202C;
+  --qir-border: #262938;
+  --qir-border-hover: #373B4F;
+  --qir-text-primary: #ECEEF2;
+  --qir-text-secondary: #939AA6;
+  --qir-text-muted: #5F6573;
+  --qir-accent: #5E6AD2;
+  --qir-accent-hover: #4E5AC0;
+  --qir-accent-subtle: rgba(94, 106, 210, 0.12);
   --bs-body-font-family: "SF Pro Display", "SF Pro Text", "SF Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --bs-font-monospace: "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -8,34 +20,144 @@ body {
   padding: 0;
   min-height: 100vh;
   overflow: hidden;
+  background-color: var(--qir-bg-base);
+  color: var(--qir-text-primary);
   font-family: var(--bs-body-font-family);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.012em;
 }
 
 #AppWrapper {
   height: 100vh;
   width: 100vw;
+  background-color: var(--qir-bg-base);
 }
 
 .Sidebar {
-  width: 250px;
+  width: 255px;
   height: 100vh;
+  background-color: var(--qir-bg-surface);
+  border-color: var(--qir-border) !important;
+}
+
+.LogoBox {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: var(--qir-accent-subtle);
+  border: 1px solid rgba(94, 106, 210, 0.3);
+}
+
+.VersionBadge {
+  background-color: var(--qir-bg-card);
+  border: 1px solid var(--qir-border);
+  color: var(--qir-text-secondary);
+  font-size: 0.7rem;
 }
 
 .Sidebar .nav-link {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 500;
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.8rem;
   border-radius: 6px;
+  color: var(--qir-text-secondary);
+  transition: all 0.15s ease;
+}
+
+.Sidebar .nav-link:hover {
+  background-color: var(--qir-bg-card);
+  color: var(--qir-text-primary);
 }
 
 .Sidebar .nav-link.active {
-  background-color: var(--bs-primary);
+  background-color: var(--qir-accent);
   color: #fff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.SidebarDivider {
+  border-color: var(--qir-border);
+  opacity: 1;
+}
+
+.StatusBox {
+  background-color: var(--qir-bg-card);
+  border: 1px solid var(--qir-border);
+}
+
+.StatusBox .border-top {
+  border-color: var(--qir-border) !important;
+}
+
+.Sidebar .border-top {
+  border-color: var(--qir-border) !important;
 }
 
 .MainContent {
   height: 100vh;
+  background-color: var(--qir-bg-base);
+}
+
+.TopNavbar {
+  background-color: var(--qir-bg-surface);
+  border-color: var(--qir-border) !important;
+}
+
+.ContentArea {
+  background-color: var(--qir-bg-base);
+}
+
+.MetricCard {
+  background-color: var(--qir-bg-card);
+  border: 1px solid var(--qir-border);
+  border-radius: 10px;
+}
+
+.MetricIconBox {
+  background-color: var(--qir-bg-surface);
+  border: 1px solid var(--qir-border);
+}
+
+.tracking-wider {
+  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+}
+
+.TableCard {
+  background-color: var(--qir-bg-card);
+  border: 1px solid var(--qir-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.TableCardHeader {
+  background-color: var(--qir-bg-surface);
+  border-bottom: 1px solid var(--qir-border);
+}
+
+.TableCardHeader .input-group-text {
+  background-color: var(--qir-bg-card);
+  border-color: var(--qir-border);
+  color: var(--qir-text-secondary);
+}
+
+.TableCardHeader .form-control {
+  background-color: var(--qir-bg-card);
+  border-color: var(--qir-border);
+  color: var(--qir-text-primary);
+}
+
+.TableCardHeader .form-control:focus {
+  background-color: var(--qir-bg-card);
+  border-color: var(--qir-accent);
+  color: var(--qir-text-primary);
+  box-shadow: 0 0 0 2px var(--qir-accent-subtle);
+}
+
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-hover-bg: rgba(255, 255, 255, 0.02);
+  margin-bottom: 0;
+  border-color: var(--qir-border);
 }
 
 .table th {
@@ -43,26 +165,93 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
-  color: #8b949e !important;
-  background-color: #161b22 !important;
+  color: var(--qir-text-secondary) !important;
+  background-color: var(--qir-bg-surface) !important;
+  border-bottom: 1px solid var(--qir-border) !important;
 }
 
 .table td {
   font-size: 0.88rem;
+  border-bottom: 1px solid var(--qir-border);
+  color: var(--qir-text-primary);
 }
 
-.card {
-  border-radius: 8px;
+.btn-primary {
+  background-color: var(--qir-accent);
+  border-color: var(--qir-accent);
+  color: #fff;
 }
 
-.btn {
-  font-weight: 500;
-  border-radius: 6px;
+.btn-primary:hover, .btn-primary:focus {
+  background-color: var(--qir-accent-hover);
+  border-color: var(--qir-accent-hover);
 }
 
-.badge {
-  font-weight: 600;
-  letter-spacing: 0.02em;
+.btn-outline-secondary {
+  border-color: var(--qir-border);
+  color: var(--qir-text-secondary);
+}
+
+.btn-outline-secondary:hover {
+  background-color: var(--qir-bg-card);
+  border-color: var(--qir-border-hover);
+  color: var(--qir-text-primary);
+}
+
+.btn-outline-primary {
+  border-color: var(--qir-accent);
+  color: var(--qir-accent);
+}
+
+.btn-outline-primary:hover {
+  background-color: var(--qir-accent);
+  border-color: var(--qir-accent);
+  color: #fff;
+}
+
+.modal-content {
+  background-color: var(--qir-bg-card);
+  border: 1px solid var(--qir-border);
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--qir-border);
+  background-color: var(--qir-bg-surface);
+}
+
+.modal-footer {
+  border-top: 1px solid var(--qir-border);
+  background-color: var(--qir-bg-surface);
+}
+
+.InnerFormCard {
+  background-color: var(--qir-bg-surface);
+  border: 1px solid var(--qir-border);
+}
+
+.InnerFormCard .card-header {
+  background-color: var(--qir-bg-elevated);
+  border-bottom: 1px solid var(--qir-border);
+}
+
+.form-control, .form-select {
+  background-color: var(--qir-bg-surface);
+  border-color: var(--qir-border);
+  color: var(--qir-text-primary);
+}
+
+.form-control:focus, .form-select:focus {
+  background-color: var(--qir-bg-surface);
+  border-color: var(--qir-accent);
+  color: var(--qir-text-primary);
+  box-shadow: 0 0 0 2px var(--qir-accent-subtle);
+}
+
+.ConsoleInputArea {
+  background-color: var(--qir-bg-surface);
+  border-color: var(--qir-border) !important;
 }
 
 .font-monospace {
@@ -78,10 +267,30 @@ body {
 }
 
 #ConsoleTerminal::-webkit-scrollbar-track {
-  background: #07090e;
+  background: #07080a;
 }
 
 #ConsoleTerminal::-webkit-scrollbar-thumb {
-  background: #252e42;
+  background: var(--qir-border);
   border-radius: 4px;
+}
+
+.AuthBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  background-color: var(--qir-bg-base);
+}
+
+.AuthCard {
+  width: 100%;
+  max-width: 400px;
+  background-color: var(--qir-bg-card);
+  border: 1px solid var(--qir-border);
+  border-radius: 14px;
+}
+
+.AuthIconBox {
+  background-color: var(--qir-accent-subtle);
+  border: 1px solid rgba(94, 106, 210, 0.3);
 }

@@ -1,8 +1,10 @@
 import fastify, { FastifyInstance } from "fastify";
 import fastifyCors from "@fastify/cors";
+import fastifyCookie from "@fastify/cookie";
 import fastifyWebsocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
+import { AuthRoutes } from "./Web/Routes/AuthRoutes.js";
 import { ServerRoutes } from "./Web/Routes/ServerRoutes.js";
 import { TemplateRoutes } from "./Web/Routes/TemplateRoutes.js";
 import { SystemRoutes } from "./Web/Routes/SystemRoutes.js";
@@ -26,6 +28,10 @@ export async function BuildApp(): Promise<FastifyInstance> {
     credentials: true,
   });
 
+  await app.register(fastifyCookie, {
+    secret: ConfigInstance.MasterKey,
+  });
+
   await app.register(fastifyWebsocket);
 
   const publicPath = path.resolve(process.cwd(), "Source", "Public");
@@ -36,6 +42,7 @@ export async function BuildApp(): Promise<FastifyInstance> {
 
   await app.register(
     async (api) => {
+      await api.register(AuthRoutes);
       await api.register(ServerRoutes);
       await api.register(TemplateRoutes);
       await api.register(SystemRoutes);

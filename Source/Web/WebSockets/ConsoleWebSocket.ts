@@ -1,14 +1,35 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type WebSocket from "ws";
 import { ServerService } from "../../Core/Services/ServerService.js";
+import { AuthService } from "../../Core/Services/AuthService.js";
 
 export async function ConsoleWebSocketRoute(fastify: FastifyInstance): Promise<void> {
   const serverService = ServerService.GetInstance();
+  const authService = AuthService.GetInstance();
 
-  fastify.get<{ Params: { Id: string } }>(
+  fastify.get<{ Params: { Id: string }; Querystring: { token?: string } }>(
     "/ws/servers/:Id/console",
     { websocket: true },
-    async (socket: WebSocket, request: FastifyRequest<{ Params: { Id: string } }>) => {
+    async (
+      socket: WebSocket,
+      request: FastifyRequest<{ Params: { Id: string }; Querystring: { token?: string } }>
+    ) => {
+      const token = request.cookies?.["qir_session"] || request.query?.token;
+      const user = token ? authService.ValidateSession(token) : null;
+
+      if (!user) {
+        if (socket.readyState === socket.OPEN) {
+          socket.send(
+            JSON.stringify({
+              Type: "Error",
+              Data: "Authentication required for terminal access.",
+            })
+          );
+        }
+        socket.close(1008, "Unauthorized");
+        return;
+      }
+
       const serverId = request.params.Id;
 
       try {
