@@ -64,4 +64,7 @@ export async function ServerRoutes(fastify) {
     fastify.post("/servers/:Id/files/grep", controller.GrepFiles);
     fastify.post("/servers/:Id/alert-webhook/test", controller.SendTestAlertWebhook);
     fastify.get("/servers/:Id/quick-facts", controller.GetServerQuickFacts);
+    fastify.get("/servers/:Id/git/status", controller.GetGitStatus);
+    fastify.post("/servers/:Id/git/pull", controller.SyncGit);
+    fastify.post("/servers/:Id/git/sync", controller.SyncGit);
 }

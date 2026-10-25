@@ -27,6 +27,13 @@ export interface IResourceLimits {
   NanoCpus?: number;
 }
 
+export interface IGitConfig {
+  RepoUrl?: string;
+  Branch?: string;
+  SubPath?: string;
+  AutoRestart?: boolean;
+}
+
 export interface IServerInstance {
   Id: string;
   Name: string;
@@ -53,6 +60,7 @@ export interface IServerInstance {
   HealthLogs?: Array<{ Start: string; End: string; ExitCode: number; Output: string }>;
   RestartCount?: number;
   FinishedAt?: string;
+  GitConfig?: IGitConfig;
 }
 
 export interface ICreateServerInput {

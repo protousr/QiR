@@ -9,7 +9,16 @@ function EscapeHtml(str) {
 const escapeHtml = EscapeHtml;
 
 
+let LastToastMessage = "";
+let LastToastTime = 0;
+
 function ShowToast(message, type = "info", duration = 3500) {
+  const now = Date.now();
+  if (message === LastToastMessage && now - LastToastTime < 500) {
+    return;
+  }
+  LastToastMessage = message;
+  LastToastTime = now;
   const container = document.getElementById("ToastContainer");
   if (!container) return;
   const toast = document.createElement("div");
@@ -383,6 +392,26 @@ const Elements = {
   FactMacAddressBadge: document.getElementById("FactMacAddressBadge"),
   FactDriverBadge: document.getElementById("FactDriverBadge"),
   FactImageDigestBadge: document.getElementById("FactImageDigestBadge"),
+  DetailFilesGitBtn: document.getElementById("DetailFilesGitBtn"),
+  DetailFilesGitBadge: document.getElementById("DetailFilesGitBadge"),
+  DetailFilesGitBranch: document.getElementById("DetailFilesGitBranch"),
+  GitSyncModal: document.getElementById("GitSyncModal"),
+  GitSyncForm: document.getElementById("GitSyncForm"),
+  GitRepoInfoCard: document.getElementById("GitRepoInfoCard"),
+  GitStatusBranchText: document.getElementById("GitStatusBranchText"),
+  GitStatusCleanBadge: document.getElementById("GitStatusCleanBadge"),
+  GitStatusRemoteText: document.getElementById("GitStatusRemoteText"),
+  GitStatusCommitText: document.getElementById("GitStatusCommitText"),
+  GitRepoUrlInput: document.getElementById("GitRepoUrlInput"),
+  GitBranchInput: document.getElementById("GitBranchInput"),
+  GitSubPathInput: document.getElementById("GitSubPathInput"),
+  GitAutoRestartCheckbox: document.getElementById("GitAutoRestartCheckbox"),
+  GitOutputWrapper: document.getElementById("GitOutputWrapper"),
+  GitExecutionStatusBadge: document.getElementById("GitExecutionStatusBadge"),
+  GitOutputPre: document.getElementById("GitOutputPre"),
+  GitModalStatusHint: document.getElementById("GitModalStatusHint"),
+  GitPullSubmitBtn: document.getElementById("GitPullSubmitBtn"),
+  GitCloneSubmitBtn: document.getElementById("GitCloneSubmitBtn"),
 };
 
 function GetBootstrapModal(element) {
@@ -1721,6 +1750,7 @@ function HandleTerminalCommandSubmit(e) {
 async function FetchServerFiles(serverId, subPath = "") {
   ActiveDetailSubPath = subPath;
   Elements.DetailFilesCurrentPath.textContent = subPath ? `/${subPath}` : "/";
+  FetchServerGitStatus(serverId, subPath);
 
   try {
     const res = await fetch(`/api/servers/${serverId}/files?SubPath=${encodeURIComponent(subPath)}`);
@@ -3122,7 +3152,8 @@ function SetupMobileSidebar() {
 function SetupCommandPalette() {
   const modalEl = document.getElementById("CommandPaletteModal");
   if (!modalEl) return;
-  const modal = new bootstrap.Modal(modalEl);
+  const modal = GetBootstrapModal(modalEl);
+  if (!modal) return;
   const input = document.getElementById("CommandPaletteInput");
   const list = document.getElementById("CommandPaletteList");
   let selectedIndex = 0;
@@ -3284,7 +3315,8 @@ function SetupCommandPalette() {
 function SetupSecurityModal() {
   const modalEl = document.getElementById("SecuritySessionsModal");
   if (!modalEl) return;
-  const modal = new bootstrap.Modal(modalEl);
+  const modal = GetBootstrapModal(modalEl);
+  if (!modal) return;
 
   const openBtn = document.getElementById("OpenSecurityModalBtn");
   if (openBtn) {
@@ -3538,8 +3570,13 @@ function DrawResourceChart() {
 }
 
 
+let ThemeCustomizerInitialized = false;
+
 function SetupThemeCustomizer() {
   const saved = localStorage.getItem("qir_theme") || "indigo";
+  document.documentElement.setAttribute("data-theme", saved);
+  if (ThemeCustomizerInitialized) return;
+  ThemeCustomizerInitialized = true;
   document.documentElement.setAttribute("data-theme", saved);
 
   document.querySelectorAll(".ThemeSelectBtn").forEach((btn) => {
@@ -4022,6 +4059,21 @@ function SetupExtraServerFeatures() {
       pill.classList.add("btn-primary", "active");
       ActiveStatusFilter = pill.dataset.status;
       RenderServersTable();
+    });
+  }
+  if (Elements.DetailFilesGitBtn) {
+    Elements.DetailFilesGitBtn.addEventListener("click", () => OpenGitSyncModal());
+  }
+  if (Elements.DetailFilesGitBadge) {
+    Elements.DetailFilesGitBadge.addEventListener("click", () => OpenGitSyncModal());
+  }
+  if (Elements.GitPullSubmitBtn) {
+    Elements.GitPullSubmitBtn.addEventListener("click", () => HandleGitSyncAction("pull"));
+  }
+  if (Elements.GitSyncForm) {
+    Elements.GitSyncForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      HandleGitSyncAction("sync");
     });
   }
 }
@@ -4960,4 +5012,124 @@ async function FetchServerQuickFacts(serverId) {
       if (Elements.FactImageDigestBadge) Elements.FactImageDigestBadge.textContent = d.ImageSha || "-";
     }
   } catch {}
+}
+
+async function FetchServerGitStatus(serverId, subPath = "") {
+  if (!serverId) return;
+  try {
+    const res = await fetch(`/api/servers/${serverId}/git/status?SubPath=${encodeURIComponent(subPath)}`);
+    const json = await res.json();
+    if (json.Success && json.Data && json.Data.IsRepo) {
+      if (Elements.DetailFilesGitBadge) Elements.DetailFilesGitBadge.classList.remove("d-none");
+      if (Elements.DetailFilesGitBranch) Elements.DetailFilesGitBranch.textContent = json.Data.Branch || "main";
+    } else {
+      if (Elements.DetailFilesGitBadge) Elements.DetailFilesGitBadge.classList.add("d-none");
+    }
+  } catch {
+    if (Elements.DetailFilesGitBadge) Elements.DetailFilesGitBadge.classList.add("d-none");
+  }
+}
+
+async function OpenGitSyncModal() {
+  if (!ActiveDetailServerId) return;
+  if (Elements.GitOutputWrapper) Elements.GitOutputWrapper.classList.add("d-none");
+  if (Elements.GitOutputPre) Elements.GitOutputPre.textContent = "";
+  if (Elements.GitSubPathInput) Elements.GitSubPathInput.value = ActiveDetailSubPath || "";
+
+  const modal = GetBootstrapModal(Elements.GitSyncModal);
+  if (modal) modal.show();
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/git/status?SubPath=${encodeURIComponent(ActiveDetailSubPath || "")}`);
+    const json = await res.json();
+    if (json.Success && json.Data) {
+      const d = json.Data;
+      if (d.IsRepo) {
+        if (Elements.GitRepoInfoCard) Elements.GitRepoInfoCard.classList.remove("d-none");
+        if (Elements.GitStatusBranchText) Elements.GitStatusBranchText.textContent = d.Branch || "HEAD";
+        if (Elements.GitStatusRemoteText) Elements.GitStatusRemoteText.textContent = d.RemoteUrl || "No remote configured";
+        if (Elements.GitRepoUrlInput && d.RemoteUrl) Elements.GitRepoUrlInput.value = d.RemoteUrl;
+        if (Elements.GitBranchInput && d.Branch) Elements.GitBranchInput.value = d.Branch;
+        if (Elements.GitStatusCommitText) {
+          Elements.GitStatusCommitText.textContent = d.LastCommit ? `${d.LastCommit.Hash} - ${d.LastCommit.Message} (${d.LastCommit.Date})` : "No commits yet";
+        }
+        if (Elements.GitStatusCleanBadge) {
+          Elements.GitStatusCleanBadge.className = d.IsClean ? "badge text-bg-success" : "badge text-bg-warning text-dark";
+          Elements.GitStatusCleanBadge.innerHTML = d.IsClean ? `<i class="bi bi-check-circle me-1"></i>Clean Tree` : `<i class="bi bi-pencil me-1"></i>Modified Files`;
+        }
+      } else {
+        if (Elements.GitRepoInfoCard) Elements.GitRepoInfoCard.classList.add("d-none");
+      }
+    }
+  } catch {}
+}
+
+async function HandleGitSyncAction(actionType) {
+  if (!ActiveDetailServerId) return;
+  const repoUrl = Elements.GitRepoUrlInput?.value.trim();
+  const branch = Elements.GitBranchInput?.value.trim();
+  const subPath = Elements.GitSubPathInput?.value.trim() || ActiveDetailSubPath || "";
+  const autoRestart = Boolean(Elements.GitAutoRestartCheckbox?.checked);
+
+  if (Elements.GitPullSubmitBtn) Elements.GitPullSubmitBtn.disabled = true;
+  if (Elements.GitCloneSubmitBtn) Elements.GitCloneSubmitBtn.disabled = true;
+  if (Elements.GitOutputWrapper) Elements.GitOutputWrapper.classList.remove("d-none");
+  if (Elements.GitExecutionStatusBadge) {
+    Elements.GitExecutionStatusBadge.className = "badge text-bg-warning text-dark";
+    Elements.GitExecutionStatusBadge.textContent = "Executing...";
+  }
+  if (Elements.GitOutputPre) {
+    Elements.GitOutputPre.textContent = `Connecting to Git and executing ${actionType} operation...\n`;
+  }
+
+  try {
+    const res = await fetch(`/api/servers/${ActiveDetailServerId}/git/pull`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        RepoUrl: repoUrl || undefined,
+        Branch: branch || undefined,
+        SubPath: subPath,
+        AutoRestart: autoRestart,
+      }),
+    });
+    const json = await res.json();
+    if (json.Success && json.Data) {
+      const d = json.Data;
+      let outText = d.Output || "Git operation finished.";
+      if (d.LastCommit) {
+        outText += `\n\nLatest Commit: ${d.LastCommit.Hash} - ${d.LastCommit.Message} by ${d.LastCommit.Author} (${d.LastCommit.Date})`;
+      }
+      if (d.AutoRestarted) {
+        outText += "\n\nContainer successfully restarted with updated code.";
+      }
+      if (Elements.GitOutputPre) Elements.GitOutputPre.textContent = outText;
+      if (Elements.GitExecutionStatusBadge) {
+        Elements.GitExecutionStatusBadge.className = "badge text-bg-success";
+        Elements.GitExecutionStatusBadge.textContent = "Success";
+      }
+      ShowToast("Git repository synced successfully!", "success");
+      await FetchServerFiles(ActiveDetailServerId, ActiveDetailSubPath);
+      if (d.AutoRestarted) {
+        await FetchSingleServer(ActiveDetailServerId);
+      }
+    } else {
+      if (Elements.GitOutputPre) Elements.GitOutputPre.textContent = `Error: ${json.Error || "Failed to sync Git"}`;
+      if (Elements.GitExecutionStatusBadge) {
+        Elements.GitExecutionStatusBadge.className = "badge text-bg-danger";
+        Elements.GitExecutionStatusBadge.textContent = "Failed";
+      }
+      ShowToast(json.Error || "Git sync failed", "error");
+    }
+  } catch (err) {
+    if (Elements.GitOutputPre) Elements.GitOutputPre.textContent = `Network error: ${err.message}`;
+    if (Elements.GitExecutionStatusBadge) {
+      Elements.GitExecutionStatusBadge.className = "badge text-bg-danger";
+      Elements.GitExecutionStatusBadge.textContent = "Network Error";
+    }
+    ShowToast("Network error syncing Git repository", "error");
+  } finally {
+    if (Elements.GitPullSubmitBtn) Elements.GitPullSubmitBtn.disabled = false;
+    if (Elements.GitCloneSubmitBtn) Elements.GitCloneSubmitBtn.disabled = false;
+  }
 }

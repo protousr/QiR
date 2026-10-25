@@ -14,6 +14,7 @@ import { LogStreamer } from "../Docker/LogStreamer.js";
 import { StatsCollector } from "../Docker/StatsCollector.js";
 import { TemplateService } from "./TemplateService.js";
 import { VolumeService } from "./VolumeService.js";
+import { GitService, type IGitStatusResult, type IGitSyncOptions, type IGitSyncResult } from "./GitService.js";
 import { BackupService } from "./BackupService.js";
 import { DatabaseManager, type IAuditLogRecord } from "../Database/DatabaseManager.js";
 import { ConfigInstance } from "../../Config/EnvironmentConfig.js";
@@ -25,6 +26,7 @@ export class ServerService {
   private readonly StatsCollector: StatsCollector;
   private readonly TemplateService: TemplateService;
   private readonly VolumeService: VolumeService;
+  private readonly GitService: GitService;
   private readonly BackupService: BackupService;
   private readonly DatabaseManager: DatabaseManager;
   private readonly DatabaseFilePath: string;
@@ -36,6 +38,7 @@ export class ServerService {
     this.StatsCollector = new StatsCollector();
     this.TemplateService = TemplateService.GetInstance();
     this.VolumeService = new VolumeService();
+    this.GitService = new GitService(this.VolumeService);
     this.BackupService = BackupService.GetInstance();
     this.DatabaseManager = DatabaseManager.GetInstance();
     this.DatabaseFilePath = path.resolve(ConfigInstance.DataDirectory, "Servers.json");
@@ -661,6 +664,16 @@ export class ServerService {
       throw new Error("Invalid webhook authorization token");
     }
 
+    if (server.GitConfig?.RepoUrl) {
+      try {
+        await this.GitService.PullOrClone(serverId, {
+          RepoUrl: server.GitConfig.RepoUrl,
+          Branch: server.GitConfig.Branch,
+          SubPath: server.GitConfig.SubPath,
+        });
+      } catch {}
+    }
+
     await this.RestartServer(serverId);
     this.DatabaseManager.LogAudit({
       Id: crypto.randomUUID(),
@@ -1252,5 +1265,63 @@ export class ServerService {
       StartedAt: inspect.State?.StartedAt || "",
       ImageSha: (inspect.Image || "").slice(0, 19),
     };
+  }
+
+  public async GetServerGitStatus(serverId: string, subPath?: string): Promise<IGitStatusResult> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error("Server not found");
+    }
+    const status = await this.GitService.GetGitStatus(serverId, subPath || server.GitConfig?.SubPath || "");
+    if (!status.RemoteUrl && server.GitConfig?.RepoUrl) {
+      status.RemoteUrl = server.GitConfig.RepoUrl;
+    }
+    if (!status.Branch && server.GitConfig?.Branch) {
+      status.Branch = server.GitConfig.Branch;
+    }
+    return status;
+  }
+
+  public async SyncServerGit(serverId: string, options: IGitSyncOptions): Promise<IGitSyncResult> {
+    const server = this.Servers.get(serverId);
+    if (!server) {
+      throw new Error("Server not found");
+    }
+
+    const effectiveRepoUrl = options.RepoUrl || server.GitConfig?.RepoUrl;
+    const effectiveBranch = options.Branch || server.GitConfig?.Branch;
+    const effectiveSubPath = options.SubPath !== undefined ? options.SubPath : (server.GitConfig?.SubPath || "");
+    const shouldRestart = options.AutoRestart !== undefined ? options.AutoRestart : (server.GitConfig?.AutoRestart ?? true);
+
+    const syncResult = await this.GitService.PullOrClone(serverId, {
+      RepoUrl: effectiveRepoUrl,
+      Branch: effectiveBranch,
+      SubPath: effectiveSubPath,
+    });
+
+    if (effectiveRepoUrl) {
+      server.GitConfig = {
+        RepoUrl: effectiveRepoUrl,
+        Branch: syncResult.Branch || effectiveBranch,
+        SubPath: effectiveSubPath,
+        AutoRestart: shouldRestart,
+      };
+      await this.SaveServers();
+    }
+
+    if (shouldRestart && server.Status === "Running") {
+      await this.RestartServer(serverId);
+      syncResult.AutoRestarted = true;
+    }
+
+    this.DatabaseManager.LogAudit({
+      Id: crypto.randomUUID(),
+      Timestamp: new Date().toISOString(),
+      Action: "GIT_SYNC",
+      IpAddress: "system",
+      Details: `Synced Git repo (${syncResult.Branch}) for server ${server.Name}`,
+    });
+
+    return syncResult;
   }
 }

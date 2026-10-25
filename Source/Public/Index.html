@@ -552,12 +552,18 @@
                   <i class="bi bi-hdd-network text-primary"></i>
                   <span class="text-body-secondary">Volume:</span>
                   <span id="DetailFilesCurrentPath">/</span>
+                  <span id="DetailFilesGitBadge" class="badge bg-body-secondary text-body border font-monospace small d-none ms-2" style="cursor: pointer;" title="Git repository detected">
+                    <i class="bi bi-git me-1 text-warning"></i><span id="DetailFilesGitBranch">-</span>
+                  </span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                   <div class="input-group input-group-sm d-none d-md-flex" style="width: 170px;">
                     <span class="input-group-text bg-transparent border-secondary text-body-secondary py-0"><i class="bi bi-search"></i></span>
                     <input type="text" class="form-control form-control-sm font-monospace bg-transparent border-secondary text-body py-0" id="FilesSearchInput" placeholder="Filter files...">
                   </div>
+                  <button class="btn btn-sm btn-outline-warning" id="DetailFilesGitBtn" type="button" title="Pull or clone from Git repository">
+                    <i class="bi bi-git me-1"></i> Git Pull / Sync
+                  </button>
                   <button class="btn btn-sm btn-outline-info" id="DetailFilesGrepBtn" type="button" title="Search inside file contents">
                     <i class="bi bi-file-earmark-font me-1"></i> Grep Content
                   </button>
@@ -2110,6 +2116,100 @@ DATABASE_URL=postgres://..."></textarea>
   </div>
 
 
+
+    <div class="modal fade" id="GitSyncModal" tabindex="-1" aria-labelledby="GitSyncModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-medium" id="GitSyncModalLabel">
+            <i class="bi bi-git me-1 text-warning"></i> Pull from Git Repository
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="GitSyncForm">
+          <div class="modal-body">
+            <div id="GitRepoInfoCard" class="card bg-body-tertiary border mb-3 d-none">
+              <div class="card-body p-3 small font-monospace">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <div>
+                    <span class="text-body-secondary me-2">ACTIVE BRANCH:</span>
+                    <span class="badge text-bg-warning text-dark fw-bold" id="GitStatusBranchText">main</span>
+                  </div>
+                  <span class="badge text-bg-success" id="GitStatusCleanBadge"><i class="bi bi-check-circle me-1"></i>Clean Tree</span>
+                </div>
+                <div class="mb-1 text-truncate">
+                  <span class="text-body-secondary me-2">REMOTE:</span>
+                  <span class="text-primary" id="GitStatusRemoteText">-</span>
+                </div>
+                <div class="text-truncate">
+                  <span class="text-body-secondary me-2">LAST COMMIT:</span>
+                  <span id="GitStatusCommitText">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-8">
+                <label for="GitRepoUrlInput" class="form-label small fw-medium">Git Repository URL</label>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-body-secondary"><i class="bi bi-link-45deg"></i></span>
+                  <input type="url" class="form-control font-monospace" id="GitRepoUrlInput" placeholder="https://github.com/username/repository.git">
+                </div>
+                <div class="form-text small">Public HTTP/HTTPS repository URL or clone address.</div>
+              </div>
+              <div class="col-md-4">
+                <label for="GitBranchInput" class="form-label small fw-medium">Branch / Tag</label>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-body-secondary"><i class="bi bi-bezier2"></i></span>
+                  <input type="text" class="form-control font-monospace" id="GitBranchInput" placeholder="main (or master)">
+                </div>
+                <div class="form-text small">Leave blank to use default.</div>
+              </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="GitSubPathInput" class="form-label small fw-medium">Volume Destination Subdirectory</label>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-body-secondary"><i class="bi bi-folder2"></i></span>
+                  <input type="text" class="form-control font-monospace" id="GitSubPathInput" placeholder="/ (root volume)">
+                </div>
+                <div class="form-text small">Target folder inside container volume.</div>
+              </div>
+              <div class="col-md-6 d-flex align-items-center pt-md-4">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="GitAutoRestartCheckbox" checked>
+                  <label class="form-check-label small fw-medium" for="GitAutoRestartCheckbox">
+                    Auto-restart container after successful pull
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div id="GitOutputWrapper" class="d-none">
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="small font-monospace text-body-secondary">Execution Output</span>
+                <span class="badge text-bg-secondary font-monospace" id="GitExecutionStatusBadge">Done</span>
+              </div>
+              <pre class="p-3 rounded font-monospace small bg-black text-light border border-secondary" id="GitOutputPre" style="max-height: 180px; overflow-y: auto; white-space: pre-wrap; font-size: 0.78rem;"></pre>
+            </div>
+          </div>
+          <div class="modal-footer d-flex justify-content-between">
+            <span class="small text-body-secondary font-monospace" id="GitModalStatusHint">Pull latest changes from remote.</span>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="GitPullSubmitBtn">
+                <i class="bi bi-cloud-arrow-down me-1"></i> Pull Latest
+              </button>
+              <button type="submit" class="btn btn-sm btn-warning" id="GitCloneSubmitBtn">
+                <i class="bi bi-arrow-repeat me-1"></i> Sync / Clone
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="App.js" type="module"></script>

@@ -151,4 +151,7 @@ export async function ServerRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Params: { Id: string }; Body: { Pattern: string; MaxResults?: number } }>("/servers/:Id/files/grep", controller.GrepFiles);
   fastify.post<{ Params: { Id: string } }>("/servers/:Id/alert-webhook/test", controller.SendTestAlertWebhook);
   fastify.get<{ Params: { Id: string } }>("/servers/:Id/quick-facts", controller.GetServerQuickFacts);
+  fastify.get<{ Params: { Id: string }; Querystring: { SubPath?: string } }>("/servers/:Id/git/status", controller.GetGitStatus);
+  fastify.post<{ Params: { Id: string }; Body: { RepoUrl?: string; Branch?: string; SubPath?: string; AutoRestart?: boolean } }>("/servers/:Id/git/pull", controller.SyncGit);
+  fastify.post<{ Params: { Id: string }; Body: { RepoUrl?: string; Branch?: string; SubPath?: string; AutoRestart?: boolean } }>("/servers/:Id/git/sync", controller.SyncGit);
 }

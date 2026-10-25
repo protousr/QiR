@@ -782,4 +782,28 @@ export class ServerController {
             });
         }
     };
+    GetGitStatus = async (request, reply) => {
+        try {
+            const status = await this.ServerService.GetServerGitStatus(request.params.Id, request.query.SubPath);
+            reply.send({ Success: true, Data: status });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to get Git status",
+            });
+        }
+    };
+    SyncGit = async (request, reply) => {
+        try {
+            const result = await this.ServerService.SyncServerGit(request.params.Id, request.body || {});
+            reply.send({ Success: true, Data: result });
+        }
+        catch (err) {
+            reply.status(500).send({
+                Success: false,
+                Error: err instanceof Error ? err.message : "Failed to sync Git repository",
+            });
+        }
+    };
 }
